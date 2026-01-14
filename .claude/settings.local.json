@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run init-admin:*)",
+      "Bash(echo:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: Full-stack authentication platform with guild system\n\nFeatures:\n- React 18 + Vite frontend with dark mode support\n- Node.js/Express backend with MongoDB Atlas\n- Discord & Google OAuth authentication\n- JWT-based session management\n- Guild management system with leader, sub-leaders \\(max 4\\), and members\n- Role-based access control \\(user, guild_leader, admin\\)\n- Responsive UI with hierarchical guild member display\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}

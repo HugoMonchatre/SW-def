@@ -1,0 +1,345 @@
+import express from 'express';
+import Guild from '../models/Guild.js';
+import User from '../models/User.js';
+import { authenticate, authorize } from '../middleware/auth.js';
+
+const router = express.Router();
+
+// Get all guilds
+router.get('/', authenticate, async (req, res) => {
+  try {
+    const guilds = await Guild.find()
+      .populate('leader', 'name email avatar')
+      .populate('subLeaders', 'name email avatar')
+      .populate('members', 'name email avatar')
+      .sort({ createdAt: -1 });
+    res.json({ guilds });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get guild by ID
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    const guild = await Guild.findById(req.params.id)
+      .populate('leader', 'name email avatar role')
+      .populate('subLeaders', 'name email avatar role')
+      .populate('members', 'name email avatar role');
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    res.json({ guild });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create a new guild (guild_leader or admin only)
+router.post('/', authenticate, authorize('guild_leader', 'admin'), async (req, res) => {
+  try {
+    const { name, description, logo } = req.body;
+
+    // Check if user already leads a guild
+    const existingGuild = await Guild.findOne({ leader: req.user._id });
+    if (existingGuild) {
+      return res.status(400).json({ error: 'You already lead a guild' });
+    }
+
+    // Check if guild name already exists
+    const duplicateGuild = await Guild.findOne({ name });
+    if (duplicateGuild) {
+      return res.status(400).json({ error: 'Guild name already exists' });
+    }
+
+    const guild = await Guild.create({
+      name,
+      description,
+      logo: logo || null,
+      leader: req.user._id,
+      members: [req.user._id]
+    });
+
+    // Update user's guild reference
+    await User.findByIdAndUpdate(req.user._id, { guild: guild._id });
+
+    const populatedGuild = await Guild.findById(guild._id)
+      .populate('leader', 'name email avatar')
+      .populate('subLeaders', 'name email avatar')
+      .populate('members', 'name email avatar');
+
+    res.status(201).json({
+      message: 'Guild created successfully',
+      guild: populatedGuild
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update guild (leader or admin only)
+router.patch('/:id', authenticate, async (req, res) => {
+  try {
+    const { name, description, logo } = req.body;
+    const guild = await Guild.findById(req.params.id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user is the leader or admin
+    if (guild.leader.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the guild leader or admin can update the guild' });
+    }
+
+    // Check for duplicate name if changed
+    if (name && name !== guild.name) {
+      const duplicate = await Guild.findOne({ name, _id: { $ne: guild._id } });
+      if (duplicate) {
+        return res.status(400).json({ error: 'Guild name already exists' });
+      }
+      guild.name = name;
+    }
+
+    if (description !== undefined) {
+      guild.description = description;
+    }
+
+    if (logo !== undefined) {
+      guild.logo = logo;
+    }
+
+    await guild.save();
+
+    const populatedGuild = await Guild.findById(guild._id)
+      .populate('leader', 'name email avatar')
+      .populate('subLeaders', 'name email avatar')
+      .populate('members', 'name email avatar');
+
+    res.json({
+      message: 'Guild updated successfully',
+      guild: populatedGuild
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add member to guild (leader or admin only)
+router.post('/:id/members', authenticate, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const guild = await Guild.findById(req.params.id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user is the leader or admin
+    if (guild.leader.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the guild leader or admin can add members' });
+    }
+
+    // Check if guild is full
+    if (guild.members.length >= guild.maxMembers) {
+      return res.status(400).json({ error: 'Guild is full' });
+    }
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if user is already in a guild
+    if (user.guild) {
+      return res.status(400).json({ error: 'User is already in a guild' });
+    }
+
+    // Check if user is already a member
+    if (guild.members.includes(userId)) {
+      return res.status(400).json({ error: 'User is already a member' });
+    }
+
+    // Add member to guild
+    guild.members.push(userId);
+    await guild.save();
+
+    // Update user's guild reference
+    await User.findByIdAndUpdate(userId, { guild: guild._id });
+
+    const populatedGuild = await Guild.findById(guild._id)
+      .populate('leader', 'name email avatar')
+      .populate('members', 'name email avatar');
+
+    res.json({
+      message: 'Member added successfully',
+      guild: populatedGuild
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Remove member from guild (leader or admin only)
+router.delete('/:id/members/:userId', authenticate, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const guild = await Guild.findById(id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user is the leader or admin
+    if (guild.leader.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the guild leader or admin can remove members' });
+    }
+
+    // Can't remove the leader
+    if (guild.leader.toString() === userId) {
+      return res.status(400).json({ error: 'Cannot remove the guild leader' });
+    }
+
+    // Remove member from guild
+    guild.members = guild.members.filter(member => member.toString() !== userId);
+    await guild.save();
+
+    // Remove guild reference from user
+    await User.findByIdAndUpdate(userId, { $unset: { guild: 1 } });
+
+    const populatedGuild = await Guild.findById(guild._id)
+      .populate('leader', 'name email avatar')
+      .populate('members', 'name email avatar');
+
+    res.json({
+      message: 'Member removed successfully',
+      guild: populatedGuild
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Promote member to sub-leader (leader or admin only)
+router.post('/:id/sub-leaders/:userId', authenticate, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const guild = await Guild.findById(id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user is the leader or admin
+    if (guild.leader.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the guild leader or admin can promote members' });
+    }
+
+    // Check if member exists in guild
+    if (!guild.members.some(m => m.toString() === userId)) {
+      return res.status(400).json({ error: 'User is not a member of this guild' });
+    }
+
+    // Can't promote the leader
+    if (guild.leader.toString() === userId) {
+      return res.status(400).json({ error: 'Cannot promote the guild leader' });
+    }
+
+    // Check if already a sub-leader
+    if (guild.subLeaders.some(s => s.toString() === userId)) {
+      return res.status(400).json({ error: 'User is already a sub-leader' });
+    }
+
+    // Check max sub-leaders (4)
+    if (guild.subLeaders.length >= 4) {
+      return res.status(400).json({ error: 'Maximum number of sub-leaders reached (4)' });
+    }
+
+    // Promote to sub-leader
+    guild.subLeaders.push(userId);
+    await guild.save();
+
+    const populatedGuild = await Guild.findById(guild._id)
+      .populate('leader', 'name email avatar')
+      .populate('subLeaders', 'name email avatar')
+      .populate('members', 'name email avatar');
+
+    res.json({
+      message: 'Member promoted to sub-leader successfully',
+      guild: populatedGuild
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Demote sub-leader to regular member (leader or admin only)
+router.delete('/:id/sub-leaders/:userId', authenticate, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const guild = await Guild.findById(id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user is the leader or admin
+    if (guild.leader.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the guild leader or admin can demote sub-leaders' });
+    }
+
+    // Check if user is a sub-leader
+    if (!guild.subLeaders.some(s => s.toString() === userId)) {
+      return res.status(400).json({ error: 'User is not a sub-leader' });
+    }
+
+    // Remove from sub-leaders
+    guild.subLeaders = guild.subLeaders.filter(s => s.toString() !== userId);
+    await guild.save();
+
+    const populatedGuild = await Guild.findById(guild._id)
+      .populate('leader', 'name email avatar')
+      .populate('subLeaders', 'name email avatar')
+      .populate('members', 'name email avatar');
+
+    res.json({
+      message: 'Sub-leader demoted successfully',
+      guild: populatedGuild
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete guild (leader or admin only)
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const guild = await Guild.findById(req.params.id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user is the leader or admin
+    if (guild.leader.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the guild leader or admin can delete the guild' });
+    }
+
+    // Remove guild reference from all members
+    await User.updateMany(
+      { _id: { $in: guild.members } },
+      { $unset: { guild: 1 } }
+    );
+
+    await guild.deleteOne();
+
+    res.json({ message: 'Guild deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
