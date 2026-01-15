@@ -15,6 +15,8 @@ function GuildPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [formData, setFormData] = useState({ name: '', description: '', logo: '' });
+  const [isGuildCollapsed, setIsGuildCollapsed] = useState(false);
+  const [showAllGuilds, setShowAllGuilds] = useState(false);
 
   // Toast state
   const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
@@ -253,19 +255,47 @@ function GuildPage() {
     <div className={styles.guildPage}>
       <div className={styles.container}>
         <div className={styles.header}>
-          <h1>Guildes</h1>
-          {(user?.role === 'guild_leader' || user?.role === 'admin') && !myGuild && (
+          <h1>Guilde</h1>
+          <div className={styles.headerActions}>
+            {myGuild && (
+              <button
+                className={`${styles.btnTab} ${showAllGuilds ? '' : styles.active}`}
+                onClick={() => setShowAllGuilds(false)}
+              >
+                Ma Guilde
+              </button>
+            )}
             <button
-              className={styles.btnPrimary}
-              onClick={() => setShowCreateModal(true)}
+              className={`${styles.btnTab} ${showAllGuilds ? styles.active : ''}`}
+              onClick={() => setShowAllGuilds(true)}
             >
-              Créer une Guilde
+              Toutes les guildes
             </button>
-          )}
+            {(user?.role === 'guild_leader' || user?.role === 'admin') && !myGuild && (
+              <button
+                className={styles.btnPrimary}
+                onClick={() => setShowCreateModal(true)}
+              >
+                Créer une Guilde
+              </button>
+            )}
+          </div>
         </div>
 
-        {myGuild && (
-          <div className={styles.myGuild}>
+        {!showAllGuilds && myGuild && (
+          <div className={styles.myGuildWrapper}>
+            <button
+              className={`${styles.btnCollapse} ${isGuildCollapsed ? styles.collapsed : ''}`}
+              onClick={() => setIsGuildCollapsed(!isGuildCollapsed)}
+              title={isGuildCollapsed ? 'Afficher la guilde' : 'Réduire la guilde'}
+            >
+              {isGuildCollapsed && myGuild.logo ? (
+                <img src={myGuild.logo} alt={myGuild.name} className={styles.btnCollapseImg} />
+              ) : (
+                isGuildCollapsed ? '↓' : '↑'
+              )}
+            </button>
+            <div className={`${styles.myGuild} ${isGuildCollapsed ? styles.guildCollapsed : ''}`}>
             <div className={styles.guildHeader}>
               <div className={styles.guildHeaderMain}>
                 {myGuild.logo && (
@@ -423,40 +453,45 @@ function GuildPage() {
               </div>
             </div>
           </div>
+        </div>
         )}
 
-        <div className={styles.allGuilds}>
-          <h2>Toutes les Guildes</h2>
-          {guilds.length === 0 ? (
-            <p className={styles.noGuilds}>Aucune guilde n'a été créée pour le moment.</p>
-          ) : (
-            <div className={styles.guildsGrid}>
-              {guilds.map(guild => (
-                <div key={guild._id} className={styles.guildCard}>
-                  {guild.logo && (
-                    <div className={styles.guildCardLogo}>
-                      <img src={guild.logo} alt={guild.name} />
+        {showAllGuilds && (
+          <div className={styles.allGuilds}>
+            <h2>Toutes les Guildes</h2>
+            {guilds.filter(g => g._id !== myGuild?._id).length === 0 ? (
+              <p className={styles.noGuilds}>Aucune autre guilde disponible.</p>
+            ) : (
+              <div className={styles.guildsGrid}>
+                {guilds
+                  .filter(guild => guild._id !== myGuild?._id)
+                  .map(guild => (
+                    <div key={guild._id} className={styles.guildCard}>
+                      {guild.logo && (
+                        <div className={styles.guildCardLogo}>
+                          <img src={guild.logo} alt={guild.name} />
+                        </div>
+                      )}
+                      <div className={styles.guildCardHeader}>
+                        <h3>{guild.name}</h3>
+                        <div className={styles.memberCount}>
+                          {guild.members.length}/{guild.maxMembers}
+                        </div>
+                      </div>
+                      <p className={styles.guildCardDescription}>
+                        {guild.description || 'Aucune description'}
+                      </p>
+                      <div className={styles.guildCardFooter}>
+                        <span className={styles.leaderBadge}>
+                          👑 {guild.leader.name}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                  <div className={styles.guildCardHeader}>
-                    <h3>{guild.name}</h3>
-                    <div className={styles.memberCount}>
-                      {guild.members.length}/{guild.maxMembers}
-                    </div>
-                  </div>
-                  <p className={styles.guildCardDescription}>
-                    {guild.description || 'Aucune description'}
-                  </p>
-                  <div className={styles.guildCardFooter}>
-                    <span className={styles.leaderBadge}>
-                      👑 {guild.leader.name}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Create Guild Modal */}
         <Modal

@@ -36,7 +36,7 @@ function Navbar() {
           ) : (
             <>
               <Link to="/dashboard" className={styles.link}>Dashboard</Link>
-              <Link to="/guilds" className={styles.link}>Guildes</Link>
+              <Link to="/guilds" className={styles.link}>Guilde</Link>
               <button
                 onClick={toggleTheme}
                 className={styles.themeToggle}
