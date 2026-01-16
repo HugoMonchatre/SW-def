@@ -1,26 +1,33 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import axios from 'axios';
+import InvitationCard from '../components/InvitationCard';
 import styles from './DashboardPage.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function DashboardPage() {
-  const { user } = useAuthStore();
-  const [users, setUsers] = useState([]);
+  const { user, setUser } = useAuthStore();
   const [userGuild, setUserGuild] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [invitations, setInvitations] = useState([]);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    username: '',
+    avatar: ''
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (user?.role === 'admin') {
-      fetchUsers();
-    } else {
-      setLoading(false);
-    }
     if (user?.guild) {
       fetchUserGuild();
     }
+    fetchInvitations();
   }, [user]);
 
   const fetchUserGuild = async () => {
@@ -35,68 +42,98 @@ function DashboardPage() {
     }
   };
 
-  const fetchUsers = async () => {
+  const fetchInvitations = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/users`, {
+      const response = await axios.get(`${API_URL}/invitations/my-invitations`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setUsers(response.data.users);
+      setInvitations(response.data);
     } catch (error) {
-      setError('Erreur lors du chargement des utilisateurs');
+      console.error('Erreur lors du chargement des invitations:', error);
+    }
+  };
+
+  const handleInvitationResponse = (invitationId, status) => {
+    setInvitations(invitations.filter(inv => inv._id !== invitationId));
+    if (status === 'accepted') {
+      // Reload user data to update guild info
+      window.location.reload();
+    }
+  };
+
+  const openProfileModal = () => {
+    setProfileForm({
+      username: user?.username || user?.name || '',
+      avatar: user?.avatar || ''
+    });
+    setShowProfileModal(true);
+  };
+
+  const openPasswordModal = () => {
+    setPasswordForm({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setShowPasswordModal(true);
+  };
+
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.patch(
+        `${API_URL}/users/me/profile`,
+        profileForm,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setUser(response.data.user);
+      setShowProfileModal(false);
+      alert('Profil mis à jour avec succès');
+    } catch (error) {
+      alert(error.response?.data?.error || 'Erreur lors de la mise à jour du profil');
     } finally {
       setLoading(false);
     }
   };
 
-  const updateUserRole = async (userId, newRole) => {
-    try {
-      const token = localStorage.getItem('token');
-      await axios.patch(
-        `${API_URL}/users/${userId}/role`,
-        { role: newRole },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
 
-      setUsers(users.map(u =>
-        u._id === userId ? { ...u, role: newRole } : u
-      ));
-    } catch (error) {
-      alert('Erreur lors de la mise à jour du rôle');
-    }
-  };
-
-  const toggleUserStatus = async (userId, currentStatus) => {
-    try {
-      const token = localStorage.getItem('token');
-      await axios.patch(
-        `${API_URL}/users/${userId}/status`,
-        { isActive: !currentStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      setUsers(users.map(u =>
-        u._id === userId ? { ...u, isActive: !currentStatus } : u
-      ));
-    } catch (error) {
-      alert('Erreur lors de la mise à jour du statut');
-    }
-  };
-
-  const deleteUser = async (userId) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      alert('Les mots de passe ne correspondent pas');
       return;
     }
 
+    if (passwordForm.newPassword.length < 6) {
+      alert('Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      await axios.patch(
+        `${API_URL}/users/me/password`,
+        {
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setShowPasswordModal(false);
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
       });
-
-      setUsers(users.filter(u => u._id !== userId));
+      alert('Mot de passe mis à jour avec succès');
     } catch (error) {
-      alert('Erreur lors de la suppression');
+      alert(error.response?.data?.error || 'Erreur lors de la mise à jour du mot de passe');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -121,8 +158,8 @@ function DashboardPage() {
           </div>
           <div className={styles.stats}>
             <div className={styles.stat}>
-              <span className={styles.statLabel}>Email</span>
-              <span className={styles.statValue}>{user?.email}</span>
+              <span className={styles.statLabel}>Pseudo</span>
+              <span className={styles.statValue}>{user?.username || user?.name}</span>
             </div>
             <div className={styles.stat}>
               <span className={styles.statLabel}>Provider</span>
@@ -142,102 +179,137 @@ function DashboardPage() {
           </div>
         </div>
 
-        {user?.role === 'admin' && (
-          <div className={styles.usersSection}>
-            <h2>Gestion des Utilisateurs</h2>
+        {invitations.length > 0 && (
+          <div className={styles.invitationsSection}>
+            <h2>Invitations en attente ({invitations.length})</h2>
+            <div className={styles.invitationsList}>
+              {invitations.map((invitation) => (
+                <InvitationCard
+                  key={invitation._id}
+                  invitation={invitation}
+                  onResponse={handleInvitationResponse}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
-            {loading ? (
-              <div className={styles.loading}>Chargement...</div>
-            ) : error ? (
-              <div className={styles.error}>{error}</div>
-            ) : (
-              <div className={styles.tableWrapper}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>Nom</th>
-                      <th>Email</th>
-                      <th>Provider</th>
-                      <th>Rôle</th>
-                      <th>Statut</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((u) => (
-                      <tr key={u._id}>
-                        <td>
-                          <div className={styles.userCell}>
-                            {u.avatar ? (
-                              <img src={u.avatar} alt={u.name} className={styles.avatarSmall} />
-                            ) : (
-                              <div className={styles.avatarSmall}>
-                                {u.name.charAt(0).toUpperCase()}
-                              </div>
-                            )}
-                            {u.name}
-                          </div>
-                        </td>
-                        <td>{u.email}</td>
-                        <td style={{ textTransform: 'capitalize' }}>{u.provider}</td>
-                        <td>
-                          {user._id === u._id ? (
-                            <span className={`${styles.badge} ${styles[u.role]}`}>
-                              {u.role}
-                            </span>
-                          ) : (
-                            <select
-                              value={u.role}
-                              onChange={(e) => updateUserRole(u._id, e.target.value)}
-                              className={styles.select}
-                            >
-                              <option value="user">User</option>
-                              <option value="guild_leader">Guild Leader</option>
-                              <option value="admin">Admin</option>
-                            </select>
-                          )}
-                        </td>
-                        <td>
-                          <span className={`${styles.statusBadge} ${u.isActive ? styles.active : styles.inactive}`}>
-                            {u.isActive ? 'Actif' : 'Inactif'}
-                          </span>
-                        </td>
-                        <td>
-                          {user._id !== u._id && (
-                            <div className={styles.actions}>
-                              <button
-                                onClick={() => toggleUserStatus(u._id, u.isActive)}
-                                className={styles.btnAction}
-                                title={u.isActive ? 'Désactiver' : 'Activer'}
-                              >
-                                {u.isActive ? '🔒' : '🔓'}
-                              </button>
-                              <button
-                                onClick={() => deleteUser(u._id)}
-                                className={`${styles.btnAction} ${styles.danger}`}
-                                title="Supprimer"
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+        <div className={styles.profileSection}>
+          <h2>Paramètres du profil</h2>
+          <div className={styles.profileActions}>
+            <button onClick={openProfileModal} className={styles.btnPrimary}>
+              Modifier le profil
+            </button>
+            {user?.provider === 'email' && (
+              <button onClick={openPasswordModal} className={styles.btnSecondary}>
+                Changer le mot de passe
+              </button>
             )}
           </div>
-        )}
+        </div>
 
-        {user?.role !== 'admin' && (
-          <div className={styles.welcomeMessage}>
-            <h3>Bienvenue sur votre dashboard !</h3>
-            <p>Vous n'avez pas les permissions d'administration.</p>
-          </div>
-        )}
+        <div className={styles.welcomeMessage}>
+          <h3>Bienvenue sur votre dashboard !</h3>
+          <p>Consultez vos invitations de guilde ci-dessus et gérez votre profil.</p>
+        </div>
       </div>
+
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowProfileModal(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h2>Modifier le profil</h2>
+            <form onSubmit={handleProfileSubmit}>
+              <div className={styles.formGroup}>
+                <label>Pseudo</label>
+                <input
+                  type="text"
+                  value={profileForm.username}
+                  onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
+                  required
+                  minLength="3"
+                  maxLength="30"
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label>URL de l'avatar</label>
+                <input
+                  type="url"
+                  value={profileForm.avatar}
+                  onChange={(e) => setProfileForm({ ...profileForm, avatar: e.target.value })}
+                  placeholder="https://exemple.com/avatar.jpg"
+                />
+              </div>
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(false)}
+                  className={styles.btnCancel}
+                  disabled={loading}
+                >
+                  Annuler
+                </button>
+                <button type="submit" className={styles.btnSubmit} disabled={loading}>
+                  {loading ? 'Enregistrement...' : 'Enregistrer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Password Modal */}
+      {showPasswordModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowPasswordModal(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h2>Changer le mot de passe</h2>
+            <form onSubmit={handlePasswordSubmit}>
+              <div className={styles.formGroup}>
+                <label>Mot de passe actuel</label>
+                <input
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                  required
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label>Nouveau mot de passe</label>
+                <input
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                  required
+                  minLength="6"
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label>Confirmer le nouveau mot de passe</label>
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  required
+                  minLength="6"
+                />
+              </div>
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className={styles.btnCancel}
+                  disabled={loading}
+                >
+                  Annuler
+                </button>
+                <button type="submit" className={styles.btnSubmit} disabled={loading}>
+                  {loading ? 'Enregistrement...' : 'Enregistrer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

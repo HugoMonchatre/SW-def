@@ -105,16 +105,16 @@ function GuildPage() {
     if (!myGuild) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/guilds/${myGuild._id}/members`,
+      await axios.post(`${API_URL}/guilds/${myGuild._id}/invite`,
         { userId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       fetchGuilds();
       fetchUsers();
       setShowAddMemberModal(false);
-      showToast('Membre ajouté avec succès !', 'success');
+      showToast('Invitation envoyée avec succès !', 'success');
     } catch (error) {
-      showToast(error.response?.data?.error || 'Erreur lors de l\'ajout du membre', 'error');
+      showToast(error.response?.data?.error || 'Erreur lors de l\'envoi de l\'invitation', 'error');
     }
   };
 
@@ -211,6 +211,12 @@ function GuildPage() {
     myGuild.leader._id === user?._id || user?.role === 'admin'
   );
 
+  const canPromoteMembers = myGuild && (
+    myGuild.leader._id === user?._id ||
+    myGuild.subLeaders?.some(s => s._id === user?._id) ||
+    user?.role === 'admin'
+  );
+
   const availableUsers = users.filter(u =>
     !u.guild && !myGuild?.members.some(m => m._id === u._id)
   );
@@ -281,6 +287,34 @@ function GuildPage() {
             )}
           </div>
         </div>
+
+        {!myGuild && !showAllGuilds && (
+          <div className={styles.noGuildMessage}>
+            <div className={styles.noGuildIcon}>🏰</div>
+            <h2>Vous n'avez pas encore de guilde</h2>
+            <p>
+              {user?.role === 'guild_leader' || user?.role === 'admin'
+                ? 'Créez votre propre guilde ou consultez les guildes existantes pour en rejoindre une.'
+                : 'Consultez les guildes existantes et attendez une invitation pour rejoindre une guilde.'}
+            </p>
+            <div className={styles.noGuildActions}>
+              {(user?.role === 'guild_leader' || user?.role === 'admin') && (
+                <button
+                  className={styles.btnPrimary}
+                  onClick={() => setShowCreateModal(true)}
+                >
+                  Créer une Guilde
+                </button>
+              )}
+              <button
+                className={styles.btnSecondary}
+                onClick={() => setShowAllGuilds(true)}
+              >
+                Voir les Guildes
+              </button>
+            </div>
+          </div>
+        )}
 
         {!showAllGuilds && myGuild && (
           <div className={styles.myGuildWrapper}>
@@ -353,7 +387,7 @@ function GuildPage() {
                           {myGuild.leader.name}
                           <span className={styles.crownBadge}>👑</span>
                         </div>
-                        <div className={styles.memberEmail}>{myGuild.leader.email}</div>
+                        <div className={styles.memberEmail}>@{myGuild.leader.username || myGuild.leader.name}</div>
                       </div>
                     </div>
                   </div>
@@ -374,7 +408,7 @@ function GuildPage() {
                             {subLeader.name}
                             <span className={styles.subLeaderBadge}>⭐</span>
                           </div>
-                          <div className={styles.memberEmail}>{subLeader.email}</div>
+                          <div className={styles.memberEmail}>@{subLeader.username || subLeader.name}</div>
                         </div>
                       </div>
                       {canManageGuild && (
@@ -409,7 +443,7 @@ function GuildPage() {
                       !myGuild.subLeaders?.some(s => s._id === member._id)
                     )
                     .map(member => {
-                      const canPromote = canManageGuild && (myGuild.subLeaders?.length || 0) < 4;
+                      const canPromoteThisMember = canPromoteMembers && (myGuild.subLeaders?.length || 0) < 4;
 
                       return (
                         <div key={member._id} className={styles.memberCard}>
@@ -423,12 +457,12 @@ function GuildPage() {
                             )}
                             <div>
                               <div className={styles.memberName}>{member.name}</div>
-                              <div className={styles.memberEmail}>{member.email}</div>
+                              <div className={styles.memberEmail}>@{member.username || member.name}</div>
                             </div>
                           </div>
                           {canManageGuild && (
                             <div className={styles.memberActions}>
-                              {canPromote && (
+                              {canPromoteThisMember && (
                                 <button
                                   className={styles.btnPromote}
                                   onClick={() => promoteToSubLeader(member._id)}
@@ -549,7 +583,7 @@ function GuildPage() {
           <div className={styles.searchBar}>
             <input
               type="text"
-              placeholder="Rechercher par nom ou email..."
+              placeholder="Rechercher par nom ou pseudo..."
               value={searchQuery}
               onChange={handleSearchChange}
               className={styles.searchInput}
@@ -589,7 +623,7 @@ function GuildPage() {
                     )}
                     <div>
                       <div className={styles.userName}>{u.name}</div>
-                      <div className={styles.userEmail}>{u.email}</div>
+                      <div className={styles.userEmail}>@{u.username || u.name}</div>
                     </div>
                   </div>
                   <button

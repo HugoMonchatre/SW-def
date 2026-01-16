@@ -37,6 +37,9 @@ function Navbar() {
             <>
               <Link to="/dashboard" className={styles.link}>Dashboard</Link>
               <Link to="/guilds" className={styles.link}>Guilde</Link>
+              {user?.role === 'admin' && (
+                <Link to="/admin" className={styles.link}>Admin</Link>
+              )}
               <button
                 onClick={toggleTheme}
                 className={styles.themeToggle}

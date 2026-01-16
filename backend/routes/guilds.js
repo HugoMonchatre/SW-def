@@ -1,6 +1,7 @@
 import express from 'express';
 import Guild from '../models/Guild.js';
 import User from '../models/User.js';
+import Invitation from '../models/Invitation.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -127,24 +128,28 @@ router.patch('/:id', authenticate, async (req, res) => {
   }
 });
 
-// Add member to guild (leader or admin only)
-router.post('/:id/members', authenticate, async (req, res) => {
+// Invite member to guild (leader or sub-leader only) - SENDS INVITATION
+router.post('/:id/invite', authenticate, async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId, role = 'member', message = '' } = req.body;
     const guild = await Guild.findById(req.params.id);
 
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
-    // Check if user is the leader or admin
-    if (guild.leader.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Only the guild leader or admin can add members' });
+    // Check if user is the leader or sub-leader
+    const isLeader = guild.leader.toString() === req.user._id.toString();
+    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
+
+    if (!isLeader && !isSubLeader && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the guild leader, sub-leaders, or admin can invite members' });
     }
 
     // Check if guild is full
-    if (guild.members.length >= guild.maxMembers) {
-      return res.status(400).json({ error: 'Guild is full' });
+    const totalMembers = 1 + guild.subLeaders.length + guild.members.length;
+    if (totalMembers >= guild.maxMembers) {
+      return res.status(400).json({ error: 'Guild is at maximum capacity' });
     }
 
     // Check if user exists
@@ -153,30 +158,46 @@ router.post('/:id/members', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Check if user is already in a guild
-    if (user.guild) {
-      return res.status(400).json({ error: 'User is already in a guild' });
-    }
-
     // Check if user is already a member
-    if (guild.members.includes(userId)) {
-      return res.status(400).json({ error: 'User is already a member' });
+    const isAlreadyMember = guild.members.some(id => id.toString() === userId) ||
+                           guild.subLeaders.some(id => id.toString() === userId) ||
+                           guild.leader.toString() === userId;
+
+    if (isAlreadyMember) {
+      return res.status(400).json({ error: 'User is already a member of this guild' });
     }
 
-    // Add member to guild
-    guild.members.push(userId);
-    await guild.save();
+    // Check if there's already a pending invitation
+    const existingInvitation = await Invitation.findOne({
+      guild: req.params.id,
+      invitedUser: userId,
+      status: 'pending',
+      expiresAt: { $gt: new Date() }
+    });
 
-    // Update user's guild reference
-    await User.findByIdAndUpdate(userId, { guild: guild._id });
+    if (existingInvitation) {
+      return res.status(400).json({ error: 'An invitation has already been sent to this user' });
+    }
 
-    const populatedGuild = await Guild.findById(guild._id)
-      .populate('leader', 'name email avatar')
-      .populate('members', 'name email avatar');
+    // Create invitation
+    const invitation = new Invitation({
+      guild: req.params.id,
+      invitedUser: userId,
+      invitedBy: req.user._id,
+      role,
+      message
+    });
 
-    res.json({
-      message: 'Member added successfully',
-      guild: populatedGuild
+    await invitation.save();
+
+    // Populate for response
+    await invitation.populate('guild', 'name description logo');
+    await invitation.populate('invitedUser', 'name username email');
+    await invitation.populate('invitedBy', 'name username email');
+
+    res.status(201).json({
+      message: 'Invitation sent successfully',
+      invitation
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -233,9 +254,12 @@ router.post('/:id/sub-leaders/:userId', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
-    // Check if user is the leader or admin
-    if (guild.leader.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Only the guild leader or admin can promote members' });
+    // Check if user is the leader, sub-leader, or admin
+    const isLeader = guild.leader.toString() === req.user._id.toString();
+    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
+
+    if (!isLeader && !isSubLeader && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the guild leader, sub-leaders, or admin can promote members' });
     }
 
     // Check if member exists in guild

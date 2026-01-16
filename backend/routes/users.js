@@ -105,6 +105,88 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
   }
 });
 
+// Update own profile (username, avatar)
+router.patch('/me/profile', authenticate, async (req, res) => {
+  try {
+    const { username, avatar } = req.body;
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Update username if provided
+    if (username !== undefined) {
+      // Check if username is already taken by another user
+      if (username !== user.username) {
+        const existingUser = await User.findOne({ username, _id: { $ne: user._id } });
+        if (existingUser) {
+          return res.status(400).json({ error: 'Username already taken' });
+        }
+        user.username = username;
+      }
+    }
+
+    // Update avatar if provided
+    if (avatar !== undefined) {
+      user.avatar = avatar;
+    }
+
+    await user.save();
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        _id: user._id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+        role: user.role,
+        provider: user.provider
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update own password (email provider only)
+router.patch('/me/password', authenticate, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if user registered with email (not OAuth)
+    if (user.provider !== 'email') {
+      return res.status(400).json({ error: 'Cannot change password for OAuth accounts' });
+    }
+
+    // Verify current password
+    const isPasswordValid = await user.comparePassword(currentPassword);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Delete user (admin only)
 router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
   try {

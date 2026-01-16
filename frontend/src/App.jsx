@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import GuildPage from './pages/GuildPage';
+import AdminPage from './pages/AdminPage';
 import Navbar from './components/Navbar';
 
 // Component to handle dashboard route with OAuth callback support
@@ -81,6 +82,10 @@ function App() {
         <Route
           path="/guilds"
           element={isAuthenticated ? <GuildPage /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/admin"
+          element={isAuthenticated ? <AdminPage /> : <Navigate to="/login" />}
         />
       </Routes>
     </Router>
