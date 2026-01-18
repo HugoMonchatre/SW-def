@@ -9,21 +9,26 @@
     "dev": "nodemon server.js",
     "init-admin": "node scripts/initAdmin.js"
   },
-  "keywords": ["authentication", "express", "oauth"],
+  "keywords": [
+    "authentication",
+    "express",
+    "oauth"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
+    "axios": "^1.13.2",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "bcryptjs": "^2.4.3",
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.3",
     "passport": "^0.7.0",
     "passport-discord": "^0.1.4",
-    "passport-google-oauth20": "^2.0.0",
-    "express-session": "^1.17.3",
-    "cookie-parser": "^1.4.6"
+    "passport-google-oauth20": "^2.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

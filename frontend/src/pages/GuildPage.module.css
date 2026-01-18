@@ -7,6 +7,7 @@
 .container {
   max-width: 1200px;
   margin: 0 auto;
+  position: relative;
 }
 
 .header {
@@ -94,13 +95,14 @@
 
 /* My Guild Wrapper */
 .myGuildWrapper {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
+  position: relative;
   margin-bottom: 3rem;
 }
 
 .btnCollapse {
+  position: absolute;
+  left: -60px;
+  top: 140px;
   width: 50px;
   height: 50px;
   border-radius: 10px;
@@ -116,6 +118,7 @@
   flex-shrink: 0;
   overflow: hidden;
   padding: 0;
+  z-index: 10;
 }
 
 .btnCollapse:hover {
@@ -171,6 +174,7 @@
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  max-width: 70%;
 }
 
 .guildLogo {
@@ -204,7 +208,10 @@
 .guildActions {
   display: flex;
   gap: 1rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  flex-direction: column;
 }
 
 /* Members Section */
@@ -738,6 +745,148 @@
   color: var(--text-secondary);
 }
 
+/* Join Requests Section */
+.joinRequestsSection {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.05));
+  border: 2px solid rgba(99, 102, 241, 0.3);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.joinRequestsSection h3 {
+  color: var(--primary);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.joinRequestsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.joinRequestCard {
+  background: var(--bg-primary);
+  padding: 1rem;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.joinRequestInfo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.joinRequestMessage {
+  font-style: italic;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.joinRequestDate {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.joinRequestActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btnAccept {
+  padding: 0.5rem 1rem;
+  background: #48bb78;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: 500;
+}
+
+.btnAccept:hover {
+  background: #38a169;
+  transform: translateY(-2px);
+}
+
+.btnReject {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: #e53e3e;
+  border: 2px solid #e53e3e;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: 500;
+}
+
+.btnReject:hover {
+  background: #fed7d7;
+}
+
+/* Guild Card Actions - Join Request Button */
+.guildCardActions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.btnJoin {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: 500;
+}
+
+.btnJoin:hover {
+  background: var(--secondary);
+  transform: translateY(-2px);
+}
+
+.btnPending {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: 500;
+}
+
+.btnPending:hover {
+  border-color: #e53e3e;
+  color: #e53e3e;
+  background: rgba(229, 62, 62, 0.05);
+}
+
+/* Join Request Form in Modal */
+.joinRequestForm {
+  padding: 0.5rem 0;
+}
+
+.joinRequestForm .joinRequestInfo {
+  display: block;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
 @media (max-width: 768px) {
   .guildHeader {
     flex-direction: column;
@@ -766,5 +915,19 @@
 
   .guildsGrid {
     grid-template-columns: 1fr;
+  }
+
+  .joinRequestCard {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .joinRequestActions {
+    width: 100%;
+  }
+
+  .joinRequestActions button {
+    flex: 1;
   }
 }

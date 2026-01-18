@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Modal, Toast, ConfirmDialog } from '../components/Modal';
+import DefenseBuilder from '../components/DefenseBuilder';
 import axios from 'axios';
 import styles from './GuildPage.module.css';
 
@@ -14,9 +15,16 @@ function GuildPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showEditGuildModal, setShowEditGuildModal] = useState(false);
+  const [showJoinRequestModal, setShowJoinRequestModal] = useState(false);
+  const [selectedGuildForJoin, setSelectedGuildForJoin] = useState(null);
+  const [joinMessage, setJoinMessage] = useState('');
   const [formData, setFormData] = useState({ name: '', description: '', logo: '' });
+  const [editFormData, setEditFormData] = useState({ description: '', logo: '' });
   const [isGuildCollapsed, setIsGuildCollapsed] = useState(false);
   const [showAllGuilds, setShowAllGuilds] = useState(false);
+  const [joinRequests, setJoinRequests] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
 
   // Toast state
   const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
@@ -41,6 +49,23 @@ function GuildPage() {
       fetchUsers();
     }
   }, [user]);
+
+  // Fetch join requests for leaders/sub-leaders
+  useEffect(() => {
+    if (myGuild && canViewJoinRequests) {
+      fetchJoinRequests();
+    }
+  }, [myGuild]);
+
+  // Check which guilds user has pending requests for
+  useEffect(() => {
+    if (!myGuild && guilds.length > 0) {
+      const pending = guilds
+        .filter(g => g.joinRequests?.some(r => r.user === user?._id || r.user?._id === user?._id))
+        .map(g => g._id);
+      setPendingRequests(pending);
+    }
+  }, [guilds, myGuild, user]);
 
   const showToast = (message, type = 'success') => {
     setToast({ isVisible: true, message, type });
@@ -83,6 +108,84 @@ function GuildPage() {
     } catch (error) {
       console.error('Error fetching users:', error);
     }
+  };
+
+  const fetchJoinRequests = async () => {
+    if (!myGuild) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/guilds/${myGuild._id}/join-requests`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setJoinRequests(response.data.joinRequests || []);
+    } catch (error) {
+      console.error('Error fetching join requests:', error);
+    }
+  };
+
+  const requestToJoinGuild = async (guildId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/guilds/${guildId}/join-request`,
+        { message: joinMessage },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setShowJoinRequestModal(false);
+      setJoinMessage('');
+      setSelectedGuildForJoin(null);
+      setPendingRequests(prev => [...prev, guildId]);
+      showToast('Demande d\'adhésion envoyée !', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Erreur lors de l\'envoi de la demande', 'error');
+    }
+  };
+
+  const cancelJoinRequest = async (guildId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_URL}/guilds/${guildId}/join-request`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPendingRequests(prev => prev.filter(id => id !== guildId));
+      showToast('Demande annulée', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Erreur lors de l\'annulation', 'error');
+    }
+  };
+
+  const acceptJoinRequest = async (userId) => {
+    if (!myGuild) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/guilds/${myGuild._id}/join-requests/${userId}/accept`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchGuilds();
+      fetchJoinRequests();
+      showToast('Membre accepté !', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Erreur lors de l\'acceptation', 'error');
+    }
+  };
+
+  const rejectJoinRequest = async (userId) => {
+    if (!myGuild) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/guilds/${myGuild._id}/join-requests/${userId}/reject`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchJoinRequests();
+      showToast('Demande refusée', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Erreur lors du refus', 'error');
+    }
+  };
+
+  const openJoinRequestModal = (guild) => {
+    setSelectedGuildForJoin(guild);
+    setJoinMessage('');
+    setShowJoinRequestModal(true);
   };
 
   const createGuild = async (e) => {
@@ -211,11 +314,42 @@ function GuildPage() {
     myGuild.leader._id === user?._id || user?.role === 'admin'
   );
 
+  const isGuildLeader = myGuild && myGuild.leader._id === user?._id;
+
   const canPromoteMembers = myGuild && (
     myGuild.leader._id === user?._id ||
     myGuild.subLeaders?.some(s => s._id === user?._id) ||
     user?.role === 'admin'
   );
+
+  const canViewJoinRequests = myGuild && (
+    myGuild.leader._id === user?._id ||
+    myGuild.subLeaders?.some(s => s._id === user?._id) ||
+    user?.role === 'admin'
+  );
+
+  const openEditGuildModal = () => {
+    setEditFormData({
+      description: myGuild?.description || '',
+      logo: myGuild?.logo || ''
+    });
+    setShowEditGuildModal(true);
+  };
+
+  const updateGuild = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(`${API_URL}/guilds/${myGuild._id}`, editFormData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setShowEditGuildModal(false);
+      fetchGuilds();
+      showToast('Guilde mise à jour avec succès !', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Erreur lors de la mise à jour de la guilde', 'error');
+    }
+  };
 
   const availableUsers = users.filter(u =>
     !u.guild && !myGuild?.members.some(m => m._id === u._id)
@@ -317,20 +451,22 @@ function GuildPage() {
         )}
 
         {!showAllGuilds && myGuild && (
+          <button
+            className={`${styles.btnCollapse} ${isGuildCollapsed ? styles.collapsed : ''}`}
+            onClick={() => setIsGuildCollapsed(!isGuildCollapsed)}
+            title={isGuildCollapsed ? 'Afficher la guilde' : 'Réduire la guilde'}
+          >
+            {isGuildCollapsed && myGuild.logo ? (
+              <img src={myGuild.logo} alt={myGuild.name} className={styles.btnCollapseImg} />
+            ) : (
+              isGuildCollapsed ? '↓' : '↑'
+            )}
+          </button>
+        )}
+        {!showAllGuilds && myGuild && (
           <div className={styles.myGuildWrapper}>
-            <button
-              className={`${styles.btnCollapse} ${isGuildCollapsed ? styles.collapsed : ''}`}
-              onClick={() => setIsGuildCollapsed(!isGuildCollapsed)}
-              title={isGuildCollapsed ? 'Afficher la guilde' : 'Réduire la guilde'}
-            >
-              {isGuildCollapsed && myGuild.logo ? (
-                <img src={myGuild.logo} alt={myGuild.name} className={styles.btnCollapseImg} />
-              ) : (
-                isGuildCollapsed ? '↓' : '↑'
-              )}
-            </button>
             <div className={`${styles.myGuild} ${isGuildCollapsed ? styles.guildCollapsed : ''}`}>
-            <div className={styles.guildHeader}>
+              <div className={styles.guildHeader}>
               <div className={styles.guildHeaderMain}>
                 {myGuild.logo && (
                   <div className={styles.guildLogo}>
@@ -355,6 +491,14 @@ function GuildPage() {
                   >
                     Ajouter un Membre
                   </button>
+                  {isGuildLeader && (
+                    <button
+                      className={styles.btnSecondary}
+                      onClick={openEditGuildModal}
+                    >
+                      Modifier la Guilde
+                    </button>
+                  )}
                   <button
                     className={styles.btnDanger}
                     onClick={deleteGuild}
@@ -364,6 +508,52 @@ function GuildPage() {
                 </div>
               )}
             </div>
+
+            {/* Join Requests Section for Leaders/Sub-Leaders */}
+            {canViewJoinRequests && joinRequests.length > 0 && (
+              <div className={styles.joinRequestsSection}>
+                <h3>Demandes d'adhésion ({joinRequests.length})</h3>
+                <div className={styles.joinRequestsList}>
+                  {joinRequests.map(request => (
+                    <div key={request.user._id} className={styles.joinRequestCard}>
+                      <div className={styles.joinRequestInfo}>
+                        {request.user.avatar ? (
+                          <img src={request.user.avatar} alt={request.user.name} className={styles.avatar} />
+                        ) : (
+                          <div className={styles.avatar}>
+                            {request.user.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <div className={styles.memberName}>{request.user.name}</div>
+                          <div className={styles.memberEmail}>@{request.user.username || request.user.name}</div>
+                          {request.message && (
+                            <div className={styles.joinRequestMessage}>"{request.message}"</div>
+                          )}
+                          <div className={styles.joinRequestDate}>
+                            {new Date(request.requestedAt).toLocaleDateString('fr-FR')}
+                          </div>
+                        </div>
+                      </div>
+                      <div className={styles.joinRequestActions}>
+                        <button
+                          className={styles.btnAccept}
+                          onClick={() => acceptJoinRequest(request.user._id)}
+                        >
+                          Accepter
+                        </button>
+                        <button
+                          className={styles.btnReject}
+                          onClick={() => rejectJoinRequest(request.user._id)}
+                        >
+                          Refuser
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className={styles.membersSection}>
               <h3>Membres de la Guilde</h3>
@@ -490,6 +680,10 @@ function GuildPage() {
         </div>
         )}
 
+        {!showAllGuilds && myGuild && (
+          <DefenseBuilder guildId={myGuild._id} guild={myGuild} user={user} onToast={showToast} />
+        )}
+
         {showAllGuilds && (
           <div className={styles.allGuilds}>
             <h2>Toutes les Guildes</h2>
@@ -520,6 +714,25 @@ function GuildPage() {
                           👑 {guild.leader.name}
                         </span>
                       </div>
+                      {!myGuild && guild.members.length < guild.maxMembers && (
+                        <div className={styles.guildCardActions}>
+                          {pendingRequests.includes(guild._id) ? (
+                            <button
+                              className={styles.btnPending}
+                              onClick={() => cancelJoinRequest(guild._id)}
+                            >
+                              Demande en attente ✕
+                            </button>
+                          ) : (
+                            <button
+                              className={styles.btnJoin}
+                              onClick={() => openJoinRequestModal(guild)}
+                            >
+                              Demander à rejoindre
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
               </div>
@@ -568,6 +781,42 @@ function GuildPage() {
               </button>
               <button type="submit" className={styles.btnPrimary}>
                 Créer
+              </button>
+            </div>
+          </form>
+        </Modal>
+
+        {/* Edit Guild Modal */}
+        <Modal
+          isOpen={showEditGuildModal}
+          onClose={() => setShowEditGuildModal(false)}
+          title="Modifier la Guilde"
+        >
+          <form onSubmit={updateGuild}>
+            <div className={styles.formGroup}>
+              <label>URL du Logo</label>
+              <input
+                type="url"
+                value={editFormData.logo}
+                onChange={(e) => setEditFormData({ ...editFormData, logo: e.target.value })}
+                placeholder="https://exemple.com/logo.png"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label>Description</label>
+              <textarea
+                value={editFormData.description}
+                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                placeholder="Description de la guilde"
+                rows={4}
+              />
+            </div>
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btnSecondary} onClick={() => setShowEditGuildModal(false)}>
+                Annuler
+              </button>
+              <button type="submit" className={styles.btnPrimary}>
+                Enregistrer
               </button>
             </div>
           </form>
@@ -659,6 +908,45 @@ function GuildPage() {
               </button>
             </div>
           )}
+        </Modal>
+
+        {/* Join Request Modal */}
+        <Modal
+          isOpen={showJoinRequestModal}
+          onClose={() => setShowJoinRequestModal(false)}
+          title={`Rejoindre ${selectedGuildForJoin?.name || 'la guilde'}`}
+        >
+          <div className={styles.joinRequestForm}>
+            <p className={styles.joinRequestInfo}>
+              Vous êtes sur le point de demander à rejoindre cette guilde.
+              Le chef et les sous-chefs seront notifiés de votre demande.
+            </p>
+            <div className={styles.formGroup}>
+              <label>Message (optionnel)</label>
+              <textarea
+                value={joinMessage}
+                onChange={(e) => setJoinMessage(e.target.value)}
+                placeholder="Présentez-vous brièvement..."
+                rows={3}
+              />
+            </div>
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => setShowJoinRequestModal(false)}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                onClick={() => requestToJoinGuild(selectedGuildForJoin?._id)}
+              >
+                Envoyer la demande
+              </button>
+            </div>
+          </div>
         </Modal>
 
         {/* Confirm Dialog */}

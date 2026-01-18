@@ -13,6 +13,7 @@ router.get('/', authenticate, async (req, res) => {
       .populate('leader', 'name email avatar')
       .populate('subLeaders', 'name email avatar')
       .populate('members', 'name email avatar')
+      .populate('joinRequests.user', 'name username email avatar')
       .sort({ createdAt: -1 });
     res.json({ guilds });
   } catch (error) {
@@ -26,7 +27,8 @@ router.get('/:id', authenticate, async (req, res) => {
     const guild = await Guild.findById(req.params.id)
       .populate('leader', 'name email avatar role')
       .populate('subLeaders', 'name email avatar role')
-      .populate('members', 'name email avatar role');
+      .populate('members', 'name email avatar role')
+      .populate('joinRequests.user', 'name username email avatar');
 
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
@@ -361,6 +363,209 @@ router.delete('/:id', authenticate, async (req, res) => {
     await guild.deleteOne();
 
     res.json({ message: 'Guild deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Request to join a guild (user without guild only)
+router.post('/:id/join-request', authenticate, async (req, res) => {
+  try {
+    const { message = '' } = req.body;
+    const guild = await Guild.findById(req.params.id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user already has a guild
+    const user = await User.findById(req.user._id);
+    if (user.guild) {
+      return res.status(400).json({ error: 'Vous êtes déjà membre d\'une guilde' });
+    }
+
+    // Check if guild is full
+    const totalMembers = 1 + guild.subLeaders.length + guild.members.length;
+    if (totalMembers >= guild.maxMembers) {
+      return res.status(400).json({ error: 'Cette guilde est complète' });
+    }
+
+    // Check if user already has a pending request
+    const existingRequest = guild.joinRequests.find(
+      r => r.user.toString() === req.user._id.toString()
+    );
+    if (existingRequest) {
+      return res.status(400).json({ error: 'Vous avez déjà une demande en attente pour cette guilde' });
+    }
+
+    // Add join request
+    guild.joinRequests.push({
+      user: req.user._id,
+      message,
+      requestedAt: new Date()
+    });
+
+    await guild.save();
+
+    res.status(201).json({
+      message: 'Demande d\'adhésion envoyée avec succès'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get join requests for a guild (leader and sub-leaders only)
+router.get('/:id/join-requests', authenticate, async (req, res) => {
+  try {
+    const guild = await Guild.findById(req.params.id)
+      .populate('joinRequests.user', 'name username email avatar');
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user is the leader or sub-leader
+    const isLeader = guild.leader.toString() === req.user._id.toString();
+    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
+
+    if (!isLeader && !isSubLeader && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Seuls le chef et les sous-chefs peuvent voir les demandes' });
+    }
+
+    res.json({ joinRequests: guild.joinRequests });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Accept join request (leader and sub-leaders only)
+router.post('/:id/join-requests/:userId/accept', authenticate, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const guild = await Guild.findById(id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user is the leader or sub-leader
+    const isLeader = guild.leader.toString() === req.user._id.toString();
+    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
+
+    if (!isLeader && !isSubLeader && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Seuls le chef et les sous-chefs peuvent accepter les demandes' });
+    }
+
+    // Check if request exists
+    const requestIndex = guild.joinRequests.findIndex(
+      r => r.user.toString() === userId
+    );
+    if (requestIndex === -1) {
+      return res.status(404).json({ error: 'Demande non trouvée' });
+    }
+
+    // Check if guild is full
+    const totalMembers = 1 + guild.subLeaders.length + guild.members.length;
+    if (totalMembers >= guild.maxMembers) {
+      return res.status(400).json({ error: 'La guilde est complète' });
+    }
+
+    // Check if user already has a guild (might have joined another)
+    const joiningUser = await User.findById(userId);
+    if (joiningUser.guild) {
+      // Remove request since user already in a guild
+      guild.joinRequests.splice(requestIndex, 1);
+      await guild.save();
+      return res.status(400).json({ error: 'Cet utilisateur a déjà rejoint une guilde' });
+    }
+
+    // Add user to members
+    guild.members.push(userId);
+    // Remove request
+    guild.joinRequests.splice(requestIndex, 1);
+    await guild.save();
+
+    // Update user's guild reference
+    await User.findByIdAndUpdate(userId, { guild: guild._id });
+
+    const populatedGuild = await Guild.findById(guild._id)
+      .populate('leader', 'name email avatar')
+      .populate('subLeaders', 'name email avatar')
+      .populate('members', 'name email avatar')
+      .populate('joinRequests.user', 'name username email avatar');
+
+    res.json({
+      message: 'Demande acceptée avec succès',
+      guild: populatedGuild
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reject join request (leader and sub-leaders only)
+router.post('/:id/join-requests/:userId/reject', authenticate, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const guild = await Guild.findById(id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user is the leader or sub-leader
+    const isLeader = guild.leader.toString() === req.user._id.toString();
+    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
+
+    if (!isLeader && !isSubLeader && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Seuls le chef et les sous-chefs peuvent refuser les demandes' });
+    }
+
+    // Check if request exists
+    const requestIndex = guild.joinRequests.findIndex(
+      r => r.user.toString() === userId
+    );
+    if (requestIndex === -1) {
+      return res.status(404).json({ error: 'Demande non trouvée' });
+    }
+
+    // Remove request
+    guild.joinRequests.splice(requestIndex, 1);
+    await guild.save();
+
+    res.json({
+      message: 'Demande refusée'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Cancel own join request
+router.delete('/:id/join-request', authenticate, async (req, res) => {
+  try {
+    const guild = await Guild.findById(req.params.id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if request exists
+    const requestIndex = guild.joinRequests.findIndex(
+      r => r.user.toString() === req.user._id.toString()
+    );
+    if (requestIndex === -1) {
+      return res.status(404).json({ error: 'Aucune demande en attente' });
+    }
+
+    // Remove request
+    guild.joinRequests.splice(requestIndex, 1);
+    await guild.save();
+
+    res.json({
+      message: 'Demande annulée'
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

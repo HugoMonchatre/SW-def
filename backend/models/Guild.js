@@ -28,6 +28,21 @@ const guildSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  joinRequests: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    message: {
+      type: String,
+      default: ''
+    },
+    requestedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   maxMembers: {
     type: Number,
     default: 30
