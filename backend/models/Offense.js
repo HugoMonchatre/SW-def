@@ -40,11 +40,10 @@ const offenseSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  defense: {
+  defenses: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Defense',
-    required: true
-  },
+    ref: 'Defense'
+  }],
   guild: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Guild',

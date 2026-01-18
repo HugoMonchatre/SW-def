@@ -52,8 +52,47 @@ router.get('/monsters/search', authenticate, async (req, res) => {
 // Get all offenses for a defense
 router.get('/defense/:defenseId', authenticate, async (req, res) => {
   try {
-    const offenses = await Offense.find({ defense: req.params.defenseId })
+    const offenses = await Offense.find({ defenses: req.params.defenseId })
       .populate('createdBy', 'name avatar')
+      .populate('defenses', 'name monsters')
+      .sort({ createdAt: -1 });
+
+    res.json({ offenses });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all offenses for a guild (for reuse)
+router.get('/guild/:guildId', authenticate, async (req, res) => {
+  try {
+    const { guildId } = req.params;
+    const { excludeDefenseId } = req.query;
+
+    const guild = await Guild.findById(guildId);
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Verify user is in the guild
+    const isLeader = guild.leader.toString() === req.user._id.toString();
+    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
+    const isMember = guild.members.some(id => id.toString() === req.user._id.toString());
+
+    if (!isLeader && !isSubLeader && !isMember && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only guild members can view offenses' });
+    }
+
+    let query = { guild: guildId };
+
+    // Optionally exclude offenses already linked to a specific defense
+    if (excludeDefenseId) {
+      query.defenses = { $ne: excludeDefenseId };
+    }
+
+    const offenses = await Offense.find(query)
+      .populate('createdBy', 'name avatar')
+      .populate('defenses', 'name monsters')
       .sort({ createdAt: -1 });
 
     res.json({ offenses });
@@ -94,7 +133,7 @@ router.post('/', authenticate, async (req, res) => {
 
     const offense = new Offense({
       name,
-      defense: defenseId,
+      defenses: [defenseId],
       guild: defense.guild,
       createdBy: req.user._id,
       monsters,
@@ -105,11 +144,101 @@ router.post('/', authenticate, async (req, res) => {
     await offense.save();
 
     const populatedOffense = await Offense.findById(offense._id)
-      .populate('createdBy', 'name avatar');
+      .populate('createdBy', 'name avatar')
+      .populate('defenses', 'name monsters');
 
     res.status(201).json({
       message: 'Offense created successfully',
       offense: populatedOffense
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Link an existing offense to a defense
+router.post('/:id/link', authenticate, async (req, res) => {
+  try {
+    const { defenseId } = req.body;
+    const offense = await Offense.findById(req.params.id);
+
+    if (!offense) {
+      return res.status(404).json({ error: 'Offense not found' });
+    }
+
+    // Verify defense exists and is in the same guild
+    const defense = await Defense.findById(defenseId);
+    if (!defense) {
+      return res.status(404).json({ error: 'Defense not found' });
+    }
+
+    if (offense.guild.toString() !== defense.guild.toString()) {
+      return res.status(400).json({ error: 'Defense must be in the same guild' });
+    }
+
+    // Check if already linked
+    if (offense.defenses.some(d => d.toString() === defenseId)) {
+      return res.status(400).json({ error: 'Offense is already linked to this defense' });
+    }
+
+    // Verify user is in the guild
+    const guild = await Guild.findById(offense.guild);
+    const isLeader = guild.leader.toString() === req.user._id.toString();
+    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
+    const isMember = guild.members.some(id => id.toString() === req.user._id.toString());
+
+    if (!isLeader && !isSubLeader && !isMember && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only guild members can link offenses' });
+    }
+
+    offense.defenses.push(defenseId);
+    await offense.save();
+
+    const populatedOffense = await Offense.findById(offense._id)
+      .populate('createdBy', 'name avatar')
+      .populate('defenses', 'name monsters');
+
+    res.json({
+      message: 'Offense linked successfully',
+      offense: populatedOffense
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Unlink an offense from a defense
+router.post('/:id/unlink', authenticate, async (req, res) => {
+  try {
+    const { defenseId } = req.body;
+    const offense = await Offense.findById(req.params.id);
+
+    if (!offense) {
+      return res.status(404).json({ error: 'Offense not found' });
+    }
+
+    // Check permission
+    const guild = await Guild.findById(offense.guild);
+    const isCreator = offense.createdBy.toString() === req.user._id.toString();
+    const isLeader = guild?.leader.toString() === req.user._id.toString();
+    const isSubLeader = guild?.subLeaders.some(id => id.toString() === req.user._id.toString());
+
+    if (!isCreator && !isLeader && !isSubLeader && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized to unlink this offense' });
+    }
+
+    // Remove the defense from the array
+    offense.defenses = offense.defenses.filter(d => d.toString() !== defenseId);
+    await offense.save();
+
+    const populatedOffense = await Offense.findById(offense._id)
+      .populate('createdBy', 'name avatar')
+      .populate('defenses', 'name monsters');
+
+    res.json({
+      message: 'Offense unlinked successfully',
+      offense: populatedOffense,
+      deleted: offense.defenses.length === 0
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -143,7 +272,8 @@ router.patch('/:id', authenticate, async (req, res) => {
     await offense.save();
 
     const populatedOffense = await Offense.findById(offense._id)
-      .populate('createdBy', 'name avatar');
+      .populate('createdBy', 'name avatar')
+      .populate('defenses', 'name monsters');
 
     res.json({
       message: 'Offense updated successfully',

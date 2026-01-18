@@ -9,6 +9,9 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
   const [offenses, setOffenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [availableOffenses, setAvailableOffenses] = useState([]);
+  const [loadingAvailable, setLoadingAvailable] = useState(false);
   const [editingOffense, setEditingOffense] = useState(null);
   const [offenseName, setOffenseName] = useState('');
   const [selectedMonsters, setSelectedMonsters] = useState([
@@ -24,7 +27,8 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     offenseId: null,
-    offenseName: ''
+    offenseName: '',
+    action: 'delete' // 'delete' or 'unlink'
   });
 
   useEffect(() => {
@@ -45,6 +49,57 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchAvailableOffenses = async () => {
+    setLoadingAvailable(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/offenses/guild/${guild._id}`, {
+        params: { excludeDefenseId: defense._id },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAvailableOffenses(response.data.offenses);
+    } catch (error) {
+      console.error('Error fetching available offenses:', error);
+    } finally {
+      setLoadingAvailable(false);
+    }
+  };
+
+  const linkOffense = async (offenseId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/offenses/${offenseId}/link`,
+        { defenseId: defense._id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      onToast('Offense liée avec succès !', 'success');
+      setShowLinkModal(false);
+      fetchOffenses();
+    } catch (error) {
+      onToast(error.response?.data?.error || 'Erreur lors de la liaison', 'error');
+    }
+  };
+
+  const unlinkOffense = async (offenseId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/offenses/${offenseId}/unlink`,
+        { defenseId: defense._id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      onToast('Offense retirée de cette défense', 'success');
+      setConfirmDialog({ isOpen: false, offenseId: null, offenseName: '', action: 'delete' });
+      fetchOffenses();
+    } catch (error) {
+      onToast(error.response?.data?.error || 'Erreur lors du retrait', 'error');
+    }
+  };
+
+  const openLinkModal = () => {
+    fetchAvailableOffenses();
+    setShowLinkModal(true);
   };
 
   const searchMonsters = useCallback(async (query) => {
@@ -205,11 +260,23 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
   };
 
   const confirmDeleteOffense = (offense) => {
+    // Si l'offense est liée à plusieurs défenses, proposer de délier au lieu de supprimer
+    const isLinkedToMultiple = offense.defenses && offense.defenses.length > 1;
     setConfirmDialog({
       isOpen: true,
       offenseId: offense._id,
-      offenseName: offense.name
+      offenseName: offense.name,
+      action: isLinkedToMultiple ? 'unlink' : 'delete',
+      linkedCount: offense.defenses?.length || 1
     });
+  };
+
+  const handleConfirmAction = async () => {
+    if (confirmDialog.action === 'unlink') {
+      await unlinkOffense(confirmDialog.offenseId);
+    } else {
+      await deleteOffense();
+    }
   };
 
   const deleteOffense = async () => {
@@ -219,7 +286,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       onToast('Offense supprimée avec succès !', 'success');
-      setConfirmDialog({ isOpen: false, offenseId: null, offenseName: '' });
+      setConfirmDialog({ isOpen: false, offenseId: null, offenseName: '', action: 'delete' });
       fetchOffenses();
     } catch (error) {
       onToast(error.response?.data?.error || 'Erreur lors de la suppression', 'error');
@@ -315,9 +382,14 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
         <div className={styles.offensesSection}>
           <div className={styles.offensesHeader}>
             <h3>Offenses proposées ({offenses.length})</h3>
-            <button className={styles.btnCreate} onClick={openCreateModal}>
-              + Proposer une Offense
-            </button>
+            <div className={styles.headerActions}>
+              <button className={styles.btnLink} onClick={openLinkModal}>
+                Lier une offense existante
+              </button>
+              <button className={styles.btnCreate} onClick={openCreateModal}>
+                + Proposer une Offense
+              </button>
+            </div>
           </div>
 
           {loading ? (
@@ -399,7 +471,14 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
                     )}
 
                     <div className={styles.offenseFooter}>
-                      <span>Proposé par {offense.createdBy?.name || 'Inconnu'}</span>
+                      <div className={styles.offenseInfo}>
+                        <span>Proposé par {offense.createdBy?.name || 'Inconnu'}</span>
+                        {offense.defenses && offense.defenses.length > 1 && (
+                          <span className={styles.linkedBadge} title={`Liée à ${offense.defenses.length} défenses`}>
+                            Utilisée sur {offense.defenses.length} défenses
+                          </span>
+                        )}
+                      </div>
                       {canManageOffense(offense) && (
                         <div className={styles.offenseActions}>
                           <button
@@ -412,7 +491,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
                             className={styles.btnDelete}
                             onClick={() => confirmDeleteOffense(offense)}
                           >
-                            Supprimer
+                            {offense.defenses && offense.defenses.length > 1 ? 'Retirer' : 'Supprimer'}
                           </button>
                         </div>
                       )}
@@ -426,10 +505,14 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
 
         <ConfirmDialog
           isOpen={confirmDialog.isOpen}
-          onClose={() => setConfirmDialog({ isOpen: false, offenseId: null, offenseName: '' })}
-          onConfirm={deleteOffense}
-          title="Supprimer l'offense"
-          message={`Êtes-vous sûr de vouloir supprimer l'offense "${confirmDialog.offenseName}" ? Cette action est irréversible.`}
+          onClose={() => setConfirmDialog({ isOpen: false, offenseId: null, offenseName: '', action: 'delete' })}
+          onConfirm={handleConfirmAction}
+          title={confirmDialog.action === 'unlink' ? "Retirer l'offense" : "Supprimer l'offense"}
+          message={
+            confirmDialog.action === 'unlink'
+              ? `L'offense "${confirmDialog.offenseName}" est liée à ${confirmDialog.linkedCount} défenses. Voulez-vous la retirer de cette défense ? Elle restera disponible sur les autres défenses.`
+              : `Êtes-vous sûr de vouloir supprimer l'offense "${confirmDialog.offenseName}" ? Cette action est irréversible.`
+          }
         />
 
         {/* Create/Edit Offense Modal */}
@@ -555,6 +638,67 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
                 disabled={!offenseName.trim() || selectedMonsters.some(m => m.monster === null)}
               >
                 {editingOffense ? 'Mettre à jour' : 'Proposer'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Link Existing Offense Modal */}
+        <Modal
+          isOpen={showLinkModal}
+          onClose={() => setShowLinkModal(false)}
+          title="Lier une offense existante"
+        >
+          <div className={styles.linkModalContent}>
+            {loadingAvailable ? (
+              <div className={styles.loading}>Chargement des offenses...</div>
+            ) : availableOffenses.length === 0 ? (
+              <div className={styles.emptyState}>
+                <p>Aucune offense disponible à lier.</p>
+                <p className={styles.hint}>Toutes les offenses de la guilde sont déjà liées à cette défense ou il n'y en a pas encore.</p>
+              </div>
+            ) : (
+              <div className={styles.availableOffensesList}>
+                {availableOffenses.map(offense => (
+                  <div key={offense._id} className={styles.availableOffenseCard}>
+                    <div className={styles.availableOffenseHeader}>
+                      <h4>{offense.name}</h4>
+                      <span className={styles.linkedCount}>
+                        Liée à {offense.defenses?.length || 0} défense(s)
+                      </span>
+                    </div>
+                    <div className={styles.availableOffenseMonsters}>
+                      {offense.monsters.map((monster, idx) => (
+                        <div
+                          key={idx}
+                          className={styles.availableMonster}
+                          style={{ borderColor: getElementColor(monster.element) }}
+                        >
+                          <img src={monster.image} alt={monster.name} />
+                        </div>
+                      ))}
+                    </div>
+                    <div className={styles.availableOffenseFooter}>
+                      <span className={styles.createdBy}>
+                        Par {offense.createdBy?.name || 'Inconnu'}
+                      </span>
+                      <button
+                        className={styles.btnLink}
+                        onClick={() => linkOffense(offense._id)}
+                      >
+                        Lier à cette défense
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className={styles.modalActions}>
+              <button
+                className={styles.btnSecondary}
+                onClick={() => setShowLinkModal(false)}
+              >
+                Fermer
               </button>
             </div>
           </div>

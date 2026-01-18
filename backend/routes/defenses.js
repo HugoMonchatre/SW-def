@@ -85,8 +85,10 @@ router.get('/guild/:guildId', authenticate, async (req, res) => {
     // Get offense counts for each defense
     const defenseIds = defenses.map(d => d._id);
     const offenseCounts = await Offense.aggregate([
-      { $match: { defense: { $in: defenseIds } } },
-      { $group: { _id: '$defense', count: { $sum: 1 } } }
+      { $match: { defenses: { $in: defenseIds } } },
+      { $unwind: '$defenses' },
+      { $match: { defenses: { $in: defenseIds } } },
+      { $group: { _id: '$defenses', count: { $sum: 1 } } }
     ]);
 
     // Create a map of defense ID to offense count
