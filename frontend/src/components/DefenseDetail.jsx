@@ -409,22 +409,42 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
                     <div className={styles.offenseHeader}>
                       <h4>{offense.name}</h4>
                       <div className={styles.voteSection}>
-                        <button
-                          className={`${styles.voteBtn} ${styles.upvote}`}
-                          onClick={() => voteOffense(offense._id, 'up')}
-                          title="Ça a marché !"
-                        >
-                          <span className={styles.voteIcon}>✓</span>
-                          <span className={styles.voteCount}>{upVotes}</span>
-                        </button>
-                        <button
-                          className={`${styles.voteBtn} ${styles.downvote}`}
-                          onClick={() => voteOffense(offense._id, 'down')}
-                          title="Ça n'a pas marché"
-                        >
-                          <span className={styles.voteIcon}>✗</span>
-                          <span className={styles.voteCount}>{downVotes}</span>
-                        </button>
+                        <div className={styles.voteGroup}>
+                          <button
+                            className={`${styles.voteBtnSmall} ${styles.decrementUp}`}
+                            onClick={() => voteOffense(offense._id, 'decrement_up')}
+                            title="Retirer un succes"
+                            disabled={upVotes === 0}
+                          >
+                            -
+                          </button>
+                          <button
+                            className={`${styles.voteBtn} ${styles.upvote}`}
+                            onClick={() => voteOffense(offense._id, 'up')}
+                            title="Ca a marche !"
+                          >
+                            <span className={styles.voteIcon}>✓</span>
+                            <span className={styles.voteCount}>{upVotes}</span>
+                          </button>
+                        </div>
+                        <div className={styles.voteGroup}>
+                          <button
+                            className={`${styles.voteBtn} ${styles.downvote}`}
+                            onClick={() => voteOffense(offense._id, 'down')}
+                            title="Ca n'a pas marche"
+                          >
+                            <span className={styles.voteIcon}>✗</span>
+                            <span className={styles.voteCount}>{downVotes}</span>
+                          </button>
+                          <button
+                            className={`${styles.voteBtnSmall} ${styles.decrementDown}`}
+                            onClick={() => voteOffense(offense._id, 'decrement_down')}
+                            title="Retirer un echec"
+                            disabled={downVotes === 0}
+                          >
+                            -
+                          </button>
+                        </div>
                       </div>
                     </div>
 

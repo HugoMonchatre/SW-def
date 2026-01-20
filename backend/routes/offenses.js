@@ -138,7 +138,7 @@ router.post('/', authenticate, async (req, res) => {
       createdBy: req.user._id,
       monsters,
       generalInstructions: generalInstructions || '',
-      votes: { up: [], down: [] }
+      votes: { up: 0, down: 0 }
     });
 
     await offense.save();
@@ -311,10 +311,10 @@ router.delete('/:id', authenticate, async (req, res) => {
   }
 });
 
-// Vote on an offense (increment up or down counter)
+// Vote on an offense (increment or decrement up/down counter)
 router.post('/:id/vote', authenticate, async (req, res) => {
   try {
-    const { voteType } = req.body; // 'up' or 'down'
+    const { voteType } = req.body; // 'up', 'down', 'decrement_up', 'decrement_down'
     const offense = await Offense.findById(req.params.id);
 
     if (!offense) {
@@ -325,11 +325,15 @@ router.post('/:id/vote', authenticate, async (req, res) => {
     if (typeof offense.votes.up !== 'number') offense.votes.up = 0;
     if (typeof offense.votes.down !== 'number') offense.votes.down = 0;
 
-    // Increment the appropriate counter
+    // Handle the vote action
     if (voteType === 'up') {
       offense.votes.up += 1;
     } else if (voteType === 'down') {
       offense.votes.down += 1;
+    } else if (voteType === 'decrement_up') {
+      offense.votes.up = Math.max(0, offense.votes.up - 1);
+    } else if (voteType === 'decrement_down') {
+      offense.votes.down = Math.max(0, offense.votes.down - 1);
     }
 
     await offense.save();

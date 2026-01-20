@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal, ConfirmDialog } from './Modal';
 import DefenseDetail from './DefenseDetail';
 import axios from 'axios';
@@ -26,9 +26,24 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
     defenseName: ''
   });
 
+  // Inventory states
+  const [inventory, setInventory] = useState(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [compatiblePlayers, setCompatiblePlayers] = useState([]);
+  const [partialPlayers, setPartialPlayers] = useState([]);
+  const [loadingPlayers, setLoadingPlayers] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const canManageInventory = guild && (
+    guild.leader?._id === user?._id ||
+    guild.subLeaders?.some(s => s._id === user?._id) ||
+    user?.role === 'admin'
+  );
+
   useEffect(() => {
     if (guildId) {
       fetchDefenses();
+      fetchInventory();
     }
   }, [guildId]);
 
@@ -42,6 +57,88 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [openMenuId]);
+
+  // Check compatible players when monsters change
+  useEffect(() => {
+    const monsterNames = selectedMonsters.filter(m => m !== null).map(m => m.name);
+    if (monsterNames.length === 3 && inventory) {
+      checkCompatiblePlayers(monsterNames);
+    } else {
+      setCompatiblePlayers([]);
+      setPartialPlayers([]);
+    }
+  }, [selectedMonsters, inventory]);
+
+  const fetchInventory = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/inventory/${guildId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setInventory(response.data.inventory);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    }
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setUploadingFile(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${API_URL}/inventory/upload/${guildId}`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      onToast(`${response.data.message} (${response.data.playersCount} joueurs, ${response.data.monstersCount} monstres)`, 'success');
+      fetchInventory();
+    } catch (error) {
+      onToast(error.response?.data?.error || 'Erreur lors de l\'upload', 'error');
+    } finally {
+      setUploadingFile(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const deleteInventory = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_URL}/inventory/${guildId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      onToast('Inventaire supprimé', 'success');
+      setInventory(null);
+    } catch (error) {
+      onToast(error.response?.data?.error || 'Erreur lors de la suppression', 'error');
+    }
+  };
+
+  const checkCompatiblePlayers = async (monsterNames) => {
+    setLoadingPlayers(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${API_URL}/inventory/${guildId}/check-monsters`, {
+        monsters: monsterNames
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCompatiblePlayers(response.data.compatiblePlayers || []);
+      setPartialPlayers(response.data.partialPlayers || []);
+    } catch (error) {
+      console.error('Error checking compatible players:', error);
+    } finally {
+      setLoadingPlayers(false);
+    }
+  };
 
   const fetchDefenses = async () => {
     try {
@@ -274,6 +371,51 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
         </button>
       </div>
 
+      {/* Inventory Upload Section */}
+      <div className={styles.inventorySection}>
+        <div className={styles.inventoryHeader}>
+          <h4>Inventaire des Monstres</h4>
+          {canManageInventory && (
+            <div className={styles.uploadArea}>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept=".xlsx,.xls,.csv"
+                className={styles.fileInput}
+                id="inventory-upload"
+              />
+              <label htmlFor="inventory-upload">
+                <button
+                  className={styles.btnUpload}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingFile}
+                >
+                  {uploadingFile ? 'Upload en cours...' : (inventory ? 'Mettre a jour' : 'Importer Excel')}
+                </button>
+              </label>
+              {inventory && (
+                <button className={styles.btnDelete} onClick={deleteInventory}>
+                  Supprimer
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        {inventory ? (
+          <div className={styles.inventoryInfo}>
+            <span>{inventory.playersCount} joueurs</span>
+            <span>{inventory.monstersCount} monstres</span>
+            <span>Fichier: {inventory.fileName}</span>
+            <span>Par: {inventory.uploadedBy}</span>
+          </div>
+        ) : (
+          <p className={styles.noInventory}>
+            Aucun inventaire importe. {canManageInventory ? 'Uploadez un fichier Excel pour voir qui peut faire chaque defense.' : 'Un chef ou sous-chef doit uploader le fichier Excel.'}
+          </p>
+        )}
+      </div>
+
       {defenses.length === 0 ? (
         <div className={styles.emptyState}>
           <p>Aucune défense créée pour le moment.</p>
@@ -488,6 +630,46 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Compatible Players Section */}
+          {selectedMonsters.every(m => m !== null) && (
+            <div className={styles.compatiblePlayersSection}>
+              <h5>Joueurs pouvant faire cette defense</h5>
+              {!inventory ? (
+                <p className={styles.noInventory}>Aucun inventaire importe</p>
+              ) : loadingPlayers ? (
+                <p className={styles.loadingPlayers}>Recherche des joueurs...</p>
+              ) : (
+                <>
+                  {compatiblePlayers.length > 0 ? (
+                    <div className={styles.compatiblePlayersList}>
+                      {compatiblePlayers.map((player, idx) => (
+                        <span key={idx} className={styles.playerTag}>
+                          {player.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className={styles.noInventory}>Aucun joueur ne possede les 3 monstres</p>
+                  )}
+
+                  {partialPlayers.length > 0 && (
+                    <div className={styles.partialPlayersList}>
+                      <h6>Joueurs partiels ({partialPlayers[0].matchCount}/3 monstres)</h6>
+                      {partialPlayers.map((player, idx) => (
+                        <div key={idx} className={styles.partialPlayer}>
+                          <span className={styles.partialPlayerName}>{player.name}</span>
+                          <span className={styles.partialPlayerMissing}>
+                            Manque: {player.missingMonsters.join(', ')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

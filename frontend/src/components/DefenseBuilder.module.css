@@ -648,6 +648,182 @@
   }
 }
 
+/* Inventory Upload Section */
+.inventorySection {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05));
+  border: 2px solid rgba(99, 102, 241, 0.3);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.inventoryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.inventoryHeader h4 {
+  margin: 0;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inventoryInfo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.inventoryInfo span {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.uploadArea {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.fileInput {
+  display: none;
+}
+
+.btnUpload {
+  padding: 0.75rem 1.5rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btnUpload:hover:not(:disabled) {
+  background: var(--secondary);
+  transform: translateY(-2px);
+}
+
+.btnUpload:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btnDelete {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: #e74c3c;
+  border: 2px solid #e74c3c;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btnDelete:hover {
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.uploadStatus {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* Compatible Players Section */
+.compatiblePlayersSection {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.compatiblePlayersSection h5 {
+  margin: 0 0 1rem 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.compatiblePlayersList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.playerTag {
+  padding: 0.4rem 0.75rem;
+  background: linear-gradient(135deg, #48bb78, #38a169);
+  color: white;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.partialPlayersList {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.partialPlayersList h6 {
+  margin: 0 0 0.75rem 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.partialPlayer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  font-size: 0.85rem;
+}
+
+.partialPlayer:not(:last-child) {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.partialPlayerName {
+  color: var(--text-primary);
+}
+
+.partialPlayerMissing {
+  color: #e74c3c;
+  font-size: 0.8rem;
+}
+
+.noInventory {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.loadingPlayers {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 @media (max-width: 768px) {
   .defensesList {
     grid-template-columns: 1fr;
@@ -674,5 +850,17 @@
   .slot img {
     width: 55px;
     height: 55px;
+  }
+
+  .inventoryHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .uploadArea {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
   }
 }

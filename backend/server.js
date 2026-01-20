@@ -12,6 +12,7 @@ import guildRoutes from './routes/guilds.js';
 import invitationRoutes from './routes/invitations.js';
 import defenseRoutes from './routes/defenses.js';
 import offenseRoutes from './routes/offenses.js';
+import inventoryRoutes from './routes/inventory.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -49,6 +50,7 @@ app.use('/api/guilds', guildRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/defenses', defenseRoutes);
 app.use('/api/offenses', offenseRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
