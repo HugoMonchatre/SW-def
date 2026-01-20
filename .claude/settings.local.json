@@ -10,7 +10,22 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd guild page improvements: tabs, collapse animation, hierarchy layout\n\n- Add tab system to switch between \"Ma Guilde\" and \"Toutes les guildes\"\n- Add collapsible guild component with suction animation effect\n- Show guild logo in collapse button when collapsed\n- Display leader and sub-leaders on same row with hierarchy layout\n- Filter out user''s guild from \"all guilds\" view\n- Style improvements for tabs and collapse button\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(mongod:*)",
       "Bash(git commit:*)",
-      "Bash(git clone:*)"
+      "Bash(git clone:*)",
+      "Bash(node --version:*)",
+      "Bash(curl:*)",
+      "Bash(bash)",
+      "Bash(export NVM_DIR=\"$HOME/.nvm\")",
+      "Bash([ -s \"$NVM_DIR/nvm.sh\" ])",
+      "Bash(. \"$NVM_DIR/nvm.sh\")",
+      "Bash(nvm install:*)",
+      "Bash(nvm use:*)",
+      "Bash(npm run dev:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(npm start)",
+      "Bash(cat:*)",
+      "Bash(node scripts/initAdmin.js:*)",
+      "Bash(wc:*)"
     ]
   }
 }

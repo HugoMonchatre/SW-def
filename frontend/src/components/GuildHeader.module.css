@@ -11,6 +11,7 @@
   display: flex;
   gap: 1.5rem;
   align-items: flex-start;
+  max-width: 80%;
 }
 
 .guildLogo {
@@ -49,6 +50,7 @@
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
+  flex-direction: column;
 }
 
 .btnSecondary {

@@ -319,13 +319,6 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
     return false;
   };
 
-  const getUserVote = (offense) => {
-    if (!user) return 'none';
-    if (offense.votes?.up?.some(id => id === user._id || id._id === user._id)) return 'up';
-    if (offense.votes?.down?.some(id => id === user._id || id._id === user._id)) return 'down';
-    return 'none';
-  };
-
   const getElementColor = (element) => {
     const colors = {
       Fire: '#e74c3c',
@@ -407,8 +400,9 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
           ) : (
             <div className={styles.offensesList}>
               {offenses.map(offense => {
-                const userVote = getUserVote(offense);
-                const voteScore = (offense.votes?.up?.length || 0) - (offense.votes?.down?.length || 0);
+                // Handle both old format (array) and new format (number)
+                const upVotes = typeof offense.votes?.up === 'number' ? offense.votes.up : 0;
+                const downVotes = typeof offense.votes?.down === 'number' ? offense.votes.down : 0;
 
                 return (
                   <div key={offense._id} className={styles.offenseCard}>
@@ -416,19 +410,20 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
                       <h4>{offense.name}</h4>
                       <div className={styles.voteSection}>
                         <button
-                          className={`${styles.voteBtn} ${styles.upvote} ${userVote === 'up' ? styles.active : ''}`}
-                          onClick={() => voteOffense(offense._id, userVote === 'up' ? 'none' : 'up')}
+                          className={`${styles.voteBtn} ${styles.upvote}`}
+                          onClick={() => voteOffense(offense._id, 'up')}
+                          title="Ça a marché !"
                         >
-                          ▲
+                          <span className={styles.voteIcon}>✓</span>
+                          <span className={styles.voteCount}>{upVotes}</span>
                         </button>
-                        <span className={`${styles.voteScore} ${voteScore > 0 ? styles.positive : voteScore < 0 ? styles.negative : ''}`}>
-                          {voteScore}
-                        </span>
                         <button
-                          className={`${styles.voteBtn} ${styles.downvote} ${userVote === 'down' ? styles.active : ''}`}
-                          onClick={() => voteOffense(offense._id, userVote === 'down' ? 'none' : 'down')}
+                          className={`${styles.voteBtn} ${styles.downvote}`}
+                          onClick={() => voteOffense(offense._id, 'down')}
+                          title="Ça n'a pas marché"
                         >
-                          ▼
+                          <span className={styles.voteIcon}>✗</span>
+                          <span className={styles.voteCount}>{downVotes}</span>
                         </button>
                       </div>
                     </div>

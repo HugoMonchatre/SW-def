@@ -311,27 +311,25 @@ router.delete('/:id', authenticate, async (req, res) => {
   }
 });
 
-// Vote on an offense
+// Vote on an offense (increment up or down counter)
 router.post('/:id/vote', authenticate, async (req, res) => {
   try {
-    const { voteType } = req.body; // 'up', 'down', or 'none'
+    const { voteType } = req.body; // 'up' or 'down'
     const offense = await Offense.findById(req.params.id);
 
     if (!offense) {
       return res.status(404).json({ error: 'Offense not found' });
     }
 
-    const userId = req.user._id.toString();
+    // Initialize votes if they don't exist
+    if (typeof offense.votes.up !== 'number') offense.votes.up = 0;
+    if (typeof offense.votes.down !== 'number') offense.votes.down = 0;
 
-    // Remove existing votes
-    offense.votes.up = offense.votes.up.filter(id => id.toString() !== userId);
-    offense.votes.down = offense.votes.down.filter(id => id.toString() !== userId);
-
-    // Add new vote
+    // Increment the appropriate counter
     if (voteType === 'up') {
-      offense.votes.up.push(req.user._id);
+      offense.votes.up += 1;
     } else if (voteType === 'down') {
-      offense.votes.down.push(req.user._id);
+      offense.votes.down += 1;
     }
 
     await offense.save();
@@ -339,9 +337,9 @@ router.post('/:id/vote', authenticate, async (req, res) => {
     res.json({
       message: 'Vote recorded',
       votes: {
-        up: offense.votes.up.length,
-        down: offense.votes.down.length,
-        score: offense.votes.up.length - offense.votes.down.length
+        up: offense.votes.up,
+        down: offense.votes.down,
+        score: offense.votes.up - offense.votes.down
       }
     });
   } catch (error) {

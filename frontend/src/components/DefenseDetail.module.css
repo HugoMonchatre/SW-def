@@ -244,8 +244,7 @@
 }
 
 .voteBtn {
-  width: 28px;
-  height: 28px;
+  padding: 0.4rem 0.6rem;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -253,44 +252,37 @@
   transition: all 0.2s;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 0.3rem;
+}
+
+.voteIcon {
+  font-weight: bold;
+}
+
+.voteCount {
+  font-weight: 600;
+  min-width: 1.2rem;
+  text-align: center;
 }
 
 .upvote {
-  background: var(--bg-primary);
-  color: var(--text-secondary);
+  background: rgba(72, 187, 120, 0.15);
+  color: #48bb78;
 }
 
-.upvote:hover,
-.upvote.active {
+.upvote:hover {
   background: #48bb78;
   color: white;
 }
 
 .downvote {
-  background: var(--bg-primary);
-  color: var(--text-secondary);
+  background: rgba(229, 62, 62, 0.15);
+  color: #e53e3e;
 }
 
-.downvote:hover,
-.downvote.active {
+.downvote:hover {
   background: #e53e3e;
   color: white;
-}
-
-.voteScore {
-  font-weight: bold;
-  min-width: 30px;
-  text-align: center;
-  font-size: 1rem;
-}
-
-.voteScore.positive {
-  color: #48bb78;
-}
-
-.voteScore.negative {
-  color: #e53e3e;
 }
 
 /* Offense Monsters */

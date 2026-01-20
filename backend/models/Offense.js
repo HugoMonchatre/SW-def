@@ -68,14 +68,18 @@ const offenseSchema = new mongoose.Schema({
     default: ''
   },
   votes: {
-    up: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }],
-    down: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }]
+    up: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 9999
+    },
+    down: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 9999
+    }
   }
 }, {
   timestamps: true
@@ -83,7 +87,7 @@ const offenseSchema = new mongoose.Schema({
 
 // Virtual for vote score
 offenseSchema.virtual('voteScore').get(function() {
-  return (this.votes?.up?.length || 0) - (this.votes?.down?.length || 0);
+  return (this.votes?.up || 0) - (this.votes?.down || 0);
 });
 
 offenseSchema.set('toJSON', { virtuals: true });
