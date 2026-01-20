@@ -1,0 +1,52 @@
+.membersSection {
+  margin-top: 2rem;
+}
+
+.membersSection h3 {
+  margin: 0 0 1.5rem 0;
+  color: var(--text-primary);
+}
+
+.hierarchy {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.leadershipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: flex-start;
+}
+
+.leadershipRow > * {
+  flex: 0 1 auto;
+  min-width: 250px;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 0.5rem 0;
+}
+
+.membersList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .leadershipRow {
+    flex-direction: column;
+  }
+
+  .leadershipRow > * {
+    min-width: 100%;
+  }
+
+  .membersList {
+    grid-template-columns: 1fr;
+  }
+}

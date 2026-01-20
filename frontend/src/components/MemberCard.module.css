@@ -1,0 +1,133 @@
+.memberCard,
+.subLeaderCard,
+.leaderCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.memberCard:hover,
+.subLeaderCard:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.leaderCard {
+  background: linear-gradient(135deg, var(--bg-secondary), rgba(255, 215, 0, 0.1));
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.subLeaderCard {
+  background: linear-gradient(135deg, var(--bg-secondary), rgba(99, 102, 241, 0.1));
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.memberInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1rem;
+  object-fit: cover;
+}
+
+.avatarLarge {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffd700, #ffb700);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1.2rem;
+  object-fit: cover;
+}
+
+.memberName {
+  font-weight: 500;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.memberEmail {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.crownBadge {
+  font-size: 1rem;
+}
+
+.subLeaderBadge {
+  font-size: 0.9rem;
+}
+
+.memberActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btnPromote,
+.btnDemote,
+.btnRemove {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.btnPromote {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--primary);
+}
+
+.btnPromote:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.btnDemote {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.btnDemote:hover {
+  background: #f59e0b;
+  color: white;
+}
+
+.btnRemove {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.btnRemove:hover {
+  background: var(--danger);
+  color: white;
+}
