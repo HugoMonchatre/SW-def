@@ -7,6 +7,7 @@ import GuildHeader from '../components/GuildHeader';
 import JoinRequestCard from '../components/JoinRequestCard';
 import MembersList from '../components/MembersList';
 import AddMemberModal from '../components/AddMemberModal';
+import GuildWarMap from '../components/GuildWarMap';
 import axios from 'axios';
 import styles from './GuildPage.module.css';
 
@@ -28,6 +29,7 @@ function GuildPage() {
   const [editFormData, setEditFormData] = useState({ description: '', logo: '' });
   const [isGuildCollapsed, setIsGuildCollapsed] = useState(false);
   const [isDefenseCollapsed, setIsDefenseCollapsed] = useState(false);
+  const [isMapCollapsed, setIsMapCollapsed] = useState(false);
   const [showAllGuilds, setShowAllGuilds] = useState(false);
   const [joinRequests, setJoinRequests] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -509,6 +511,24 @@ function GuildPage() {
         {!showAllGuilds && myGuild && (
           <div className={`${styles.defenseWrapper} ${isDefenseCollapsed ? styles.defenseCollapsed : ''}`}>
             <DefenseBuilder guildId={myGuild._id} guild={myGuild} user={user} onToast={showToast} />
+          </div>
+        )}
+
+        {/* Collapse Button for Map */}
+        {!showAllGuilds && myGuild && (
+          <button
+            className={`${styles.btnCollapse} ${styles.btnCollapseMap} ${isMapCollapsed ? styles.collapsed : ''}`}
+            onClick={() => setIsMapCollapsed(!isMapCollapsed)}
+            title={isMapCollapsed ? 'Afficher la carte' : 'Réduire la carte'}
+          >
+            {isMapCollapsed ? '🗺️' : '↑'}
+          </button>
+        )}
+
+        {/* Guild War Map */}
+        {!showAllGuilds && myGuild && (
+          <div className={`${styles.mapWrapper} ${isMapCollapsed ? styles.mapCollapsed : ''}`}>
+            <GuildWarMap guild={myGuild} members={myGuild.members} />
           </div>
         )}
 
