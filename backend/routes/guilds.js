@@ -571,4 +571,43 @@ router.delete('/:id/join-request', authenticate, async (req, res) => {
   }
 });
 
+// Leave guild (members can leave, but not the leader)
+router.post('/:id/leave', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const guild = await Guild.findById(id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user is a member of this guild
+    const isMember = guild.members.some(m => m.toString() === req.user._id.toString());
+    if (!isMember) {
+      return res.status(400).json({ error: 'You are not a member of this guild' });
+    }
+
+    // Leader cannot leave (must transfer leadership or delete guild first)
+    if (guild.leader.toString() === req.user._id.toString()) {
+      return res.status(400).json({ error: 'Le chef de guilde ne peut pas quitter la guilde. Vous devez soit transférer le rôle de chef, soit supprimer la guilde.' });
+    }
+
+    // Remove user from sub-leaders if they are one
+    guild.subLeaders = guild.subLeaders.filter(s => s.toString() !== req.user._id.toString());
+
+    // Remove user from members
+    guild.members = guild.members.filter(m => m.toString() !== req.user._id.toString());
+    await guild.save();
+
+    // Remove guild reference from user
+    await User.findByIdAndUpdate(req.user._id, { $unset: { guild: 1 } });
+
+    res.json({
+      message: 'Vous avez quitté la guilde avec succès'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

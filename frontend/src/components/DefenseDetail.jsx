@@ -5,7 +5,7 @@ import styles from './DefenseDetail.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-function DefenseDetail({ defense, guild, user, onClose, onToast }) {
+function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate }) {
   const [offenses, setOffenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -30,6 +30,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
     offenseName: '',
     action: 'delete' // 'delete' or 'unlink'
   });
+  const [linkSearchQuery, setLinkSearchQuery] = useState('');
 
   useEffect(() => {
     if (defense?._id) {
@@ -77,6 +78,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
       onToast('Offense liée avec succès !', 'success');
       setShowLinkModal(false);
       fetchOffenses();
+      onOffenseUpdate?.();
     } catch (error) {
       onToast(error.response?.data?.error || 'Erreur lors de la liaison', 'error');
     }
@@ -92,6 +94,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
       onToast('Offense retirée de cette défense', 'success');
       setConfirmDialog({ isOpen: false, offenseId: null, offenseName: '', action: 'delete' });
       fetchOffenses();
+      onOffenseUpdate?.();
     } catch (error) {
       onToast(error.response?.data?.error || 'Erreur lors du retrait', 'error');
     }
@@ -254,6 +257,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
 
       setShowCreateModal(false);
       fetchOffenses();
+      onOffenseUpdate?.();
     } catch (error) {
       onToast(error.response?.data?.error || 'Erreur lors de la sauvegarde', 'error');
     }
@@ -288,6 +292,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
       onToast('Offense supprimée avec succès !', 'success');
       setConfirmDialog({ isOpen: false, offenseId: null, offenseName: '', action: 'delete' });
       fetchOffenses();
+      onOffenseUpdate?.();
     } catch (error) {
       onToast(error.response?.data?.error || 'Erreur lors de la suppression', 'error');
     }
@@ -646,7 +651,10 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
         {/* Link Existing Offense Modal */}
         <Modal
           isOpen={showLinkModal}
-          onClose={() => setShowLinkModal(false)}
+          onClose={() => {
+            setShowLinkModal(false);
+            setLinkSearchQuery('');
+          }}
           title="Lier une offense existante"
         >
           <div className={styles.linkModalContent}>
@@ -658,8 +666,39 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
                 <p className={styles.hint}>Toutes les offenses de la guilde sont déjà liées à cette défense ou il n'y en a pas encore.</p>
               </div>
             ) : (
-              <div className={styles.availableOffensesList}>
-                {availableOffenses.map(offense => (
+              <>
+                <div className={styles.linkSearchBar}>
+                  <input
+                    type="text"
+                    value={linkSearchQuery}
+                    onChange={(e) => setLinkSearchQuery(e.target.value)}
+                    placeholder="Rechercher par nom d'offense ou de monstre..."
+                    className={styles.searchInput}
+                  />
+                  {linkSearchQuery && (
+                    <button
+                      className={styles.clearSearch}
+                      onClick={() => setLinkSearchQuery('')}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                <div className={styles.availableOffensesList}>
+                  {availableOffenses
+                    .filter(offense => {
+                      if (!linkSearchQuery.trim()) return true;
+                      const query = linkSearchQuery.toLowerCase();
+
+                      // Search in offense name
+                      if (offense.name.toLowerCase().includes(query)) return true;
+
+                      // Search in monster names
+                      return offense.monsters.some(monster =>
+                        monster.name.toLowerCase().includes(query)
+                      );
+                    })
+                    .map(offense => (
                   <div key={offense._id} className={styles.availableOffenseCard}>
                     <div className={styles.availableOffenseHeader}>
                       <h4>{offense.name}</h4>
@@ -690,8 +729,9 @@ function DefenseDetail({ defense, guild, user, onClose, onToast }) {
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
+                    ))}
+                </div>
+              </>
             )}
             <div className={styles.modalActions}>
               <button

@@ -18,6 +18,8 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
   const [activeSlot, setActiveSlot] = useState(null);
   const [editingDefense, setEditingDefense] = useState(null);
   const [selectedDefense, setSelectedDefense] = useState(null);
+  const [defenseSearchQuery, setDefenseSearchQuery] = useState('');
+  const [openMenuId, setOpenMenuId] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     defenseId: null,
@@ -29,6 +31,17 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
       fetchDefenses();
     }
   }, [guildId]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (openMenuId && !e.target.closest(`.${styles.defenseActions}`)) {
+        setOpenMenuId(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [openMenuId]);
 
   const fetchDefenses = async () => {
     try {
@@ -234,6 +247,20 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
     return text;
   };
 
+  const filteredDefenses = defenses.filter(defense => {
+    if (!defenseSearchQuery.trim()) return true;
+
+    const query = defenseSearchQuery.toLowerCase();
+
+    // Search in defense name
+    if (defense.name.toLowerCase().includes(query)) return true;
+
+    // Search in monster names
+    return defense.monsters.some(monster =>
+      monster.name.toLowerCase().includes(query)
+    );
+  });
+
   if (loading) {
     return <div className={styles.loading}>Chargement des défenses...</div>;
   }
@@ -255,8 +282,32 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
           </button>
         </div>
       ) : (
-        <div className={styles.defensesList}>
-          {defenses.map(defense => (
+        <>
+          <div className={styles.searchBar}>
+            <input
+              type="text"
+              value={defenseSearchQuery}
+              onChange={(e) => setDefenseSearchQuery(e.target.value)}
+              placeholder="Rechercher par nom de défense ou de monstre..."
+              className={styles.searchInput}
+            />
+            {defenseSearchQuery && (
+              <button
+                className={styles.clearSearch}
+                onClick={() => setDefenseSearchQuery('')}
+              >
+                ×
+              </button>
+            )}
+          </div>
+
+          {filteredDefenses.length === 0 ? (
+            <div className={styles.noResults}>
+              Aucune défense trouvée pour "{defenseSearchQuery}"
+            </div>
+          ) : (
+            <div className={styles.defensesList}>
+              {filteredDefenses.map(defense => (
             <div
               key={defense._id}
               className={styles.defenseCard}
@@ -270,55 +321,75 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
                 {canManageDefense(defense) && (
                   <div className={styles.defenseActions} onClick={e => e.stopPropagation()}>
                     <button
-                      className={styles.btnEdit}
-                      onClick={() => openEditModal(defense)}
+                      className={styles.btnManage}
+                      onClick={() => setOpenMenuId(openMenuId === defense._id ? null : defense._id)}
                     >
-                      Modifier
+                      Gérer
                     </button>
-                    <button
-                      className={styles.btnDelete}
-                      onClick={() => confirmDeleteDefense(defense)}
-                    >
-                      Supprimer
-                    </button>
+                    {openMenuId === defense._id && (
+                      <div className={styles.manageMenu}>
+                        <button
+                          className={styles.menuItem}
+                          onClick={() => {
+                            openEditModal(defense);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          ✏️ Modifier
+                        </button>
+                        <button
+                          className={styles.menuItem}
+                          onClick={() => {
+                            confirmDeleteDefense(defense);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          🗑️ Supprimer
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-              <div className={styles.monstersRow}>
-                {defense.monsters[0]?.leader_skill && (
-                  <div className={styles.leaderSkillBadge}>
-                    <span className={styles.leaderIcon}>L</span>
-                    {formatLeaderSkill(defense.monsters[0].leader_skill)}
-                  </div>
-                )}
-                {defense.monsters.map((monster, idx) => (
-                  <div key={idx} className={styles.monsterDisplay}>
-                    <div
-                      className={`${styles.monsterImage} ${idx === 0 && monster.leader_skill ? styles.hasLeader : ''}`}
-                      style={{ borderColor: getElementColor(monster.element) }}
-                    >
-                      <img
-                        src={monster.image}
-                        alt={monster.name}
-                      />
-                      {idx === 0 && monster.leader_skill && (
-                        <div className={styles.leaderBadge}>L</div>
-                      )}
+              <div className={styles.defenseContent}>
+                <div className={styles.monstersRow}>
+                  {defense.monsters[0]?.leader_skill && (
+                    <div className={styles.leaderSkillBadge}>
+                      <span className={styles.leaderIcon}>L</span>
+                      {formatLeaderSkill(defense.monsters[0].leader_skill)}
                     </div>
-                    <div className={styles.monsterName}>{monster.name}</div>
-                    <div className={styles.monsterStars}>
-                      {'★'.repeat(monster.natural_stars)}
+                  )}
+                  {defense.monsters.map((monster, idx) => (
+                    <div key={idx} className={styles.monsterDisplay}>
+                      <div
+                        className={`${styles.monsterImage} ${idx === 0 && monster.leader_skill ? styles.hasLeader : ''}`}
+                        style={{ borderColor: getElementColor(monster.element) }}
+                      >
+                        <img
+                          src={monster.image}
+                          alt={monster.name}
+                        />
+                        {idx === 0 && monster.leader_skill && (
+                          <div className={styles.leaderBadge}>L</div>
+                        )}
+                      </div>
+                      <div className={styles.monsterName}>{monster.name}</div>
+                      <div className={styles.monsterStars}>
+                        {'★'.repeat(monster.natural_stars)}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-              <div className={styles.defenseFooter}>
-                <span>Créé par {defense.createdBy?.name || 'Inconnu'}</span>
-                <span className={styles.clickHint}>Cliquer pour voir les offenses</span>
+                  ))}
+                </div>
+                <div className={styles.defenseFooter}>
+                  <span>Créé par {defense.createdBy?.name || 'Inconnu'}</span>
+                  <span className={styles.clickHint}>Cliquer pour voir les offenses</span>
+                </div>
               </div>
             </div>
           ))}
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       <ConfirmDialog
@@ -446,6 +517,7 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
           user={user}
           onClose={() => setSelectedDefense(null)}
           onToast={onToast}
+          onOffenseUpdate={fetchDefenses}
         />
       )}
     </div>

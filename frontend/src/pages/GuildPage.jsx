@@ -8,7 +8,7 @@ import styles from './GuildPage.module.css';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function GuildPage() {
-  const { user } = useAuthStore();
+  const { user, checkAuth } = useAuthStore();
   const [guilds, setGuilds] = useState([]);
   const [myGuild, setMyGuild] = useState(null);
   const [users, setUsers] = useState([]);
@@ -310,6 +310,29 @@ function GuildPage() {
     );
   };
 
+  const leaveGuild = async () => {
+    if (!myGuild) return;
+
+    showConfirm(
+      'Quitter la guilde',
+      'Êtes-vous sûr de vouloir quitter cette guilde ? Vous devrez demander à rejoindre à nouveau si vous changez d\'avis.',
+      async () => {
+        try {
+          const token = localStorage.getItem('token');
+          await axios.post(`${API_URL}/guilds/${myGuild._id}/leave`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          await checkAuth(); // Refresh user data to remove guild reference
+          fetchGuilds();
+          showToast('Vous avez quitté la guilde', 'success');
+        } catch (error) {
+          showToast(error.response?.data?.error || 'Erreur lors de la sortie de la guilde', 'error');
+        }
+      },
+      'danger'
+    );
+  };
+
   const canManageGuild = myGuild && (
     myGuild.leader._id === user?._id || user?.role === 'admin'
   );
@@ -483,30 +506,39 @@ function GuildPage() {
                   </div>
                 </div>
               </div>
-              {canManageGuild && (
-                <div className={styles.guildActions}>
-                  <button
-                    className={styles.btnSecondary}
-                    onClick={openAddMemberModal}
-                  >
-                    Ajouter un Membre
-                  </button>
-                  {isGuildLeader && (
+              <div className={styles.guildActions}>
+                {canManageGuild ? (
+                  <>
                     <button
                       className={styles.btnSecondary}
-                      onClick={openEditGuildModal}
+                      onClick={openAddMemberModal}
                     >
-                      Modifier la Guilde
+                      Ajouter un Membre
                     </button>
-                  )}
+                    {isGuildLeader && (
+                      <button
+                        className={styles.btnSecondary}
+                        onClick={openEditGuildModal}
+                      >
+                        Modifier la Guilde
+                      </button>
+                    )}
+                    <button
+                      className={styles.btnDanger}
+                      onClick={deleteGuild}
+                    >
+                      Supprimer la Guilde
+                    </button>
+                  </>
+                ) : (
                   <button
                     className={styles.btnDanger}
-                    onClick={deleteGuild}
+                    onClick={leaveGuild}
                   >
-                    Supprimer la Guilde
+                    Quitter la Guilde
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Join Requests Section for Leaders/Sub-Leaders */}

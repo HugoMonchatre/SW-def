@@ -33,7 +33,8 @@ function DashboardPage() {
   const fetchUserGuild = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/guilds/${user.guild}`, {
+      const guildId = typeof user.guild === 'object' ? user.guild._id : user.guild;
+      const response = await axios.get(`${API_URL}/guilds/${guildId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUserGuild(response.data.guild);

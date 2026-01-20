@@ -18,6 +18,67 @@
   margin: 0;
 }
 
+/* Search Bar */
+.searchBar {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.searchBar .searchInput {
+  width: 100%;
+  padding: 0.875rem 2.5rem 0.875rem 1rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  transition: all 0.3s;
+}
+
+.searchBar .searchInput:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: var(--bg-primary);
+}
+
+.searchBar .searchInput::placeholder {
+  color: var(--text-secondary);
+}
+
+.clearSearch {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: var(--text-secondary);
+  color: var(--bg-primary);
+  border-radius: 50%;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.clearSearch:hover {
+  background: var(--text-primary);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.noResults {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-style: italic;
+}
+
 .loading {
   text-align: center;
   padding: 2rem;
@@ -54,36 +115,21 @@
   transform: translateY(-2px);
 }
 
-.btnEdit {
+.btnManage {
   padding: 0.5rem 1rem;
-  background: transparent;
-  color: var(--primary);
-  border: 2px solid var(--primary);
-  border-radius: 6px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btnEdit:hover {
   background: var(--primary);
   color: white;
-}
-
-.btnDelete {
-  padding: 0.5rem 1rem;
-  background: transparent;
-  color: #e74c3c;
-  border: 2px solid #e74c3c;
+  border: none;
   border-radius: 6px;
   font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.3s;
+  font-weight: 500;
 }
 
-.btnDelete:hover {
-  background: #e74c3c;
-  color: white;
+.btnManage:hover {
+  background: var(--secondary);
+  transform: translateY(-1px);
 }
 
 .btnSecondary {
@@ -139,6 +185,9 @@
   cursor: pointer;
   border: 2px solid transparent;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 350px;
 }
 
 .counterBadge {
@@ -191,8 +240,54 @@
 }
 
 .defenseActions {
+  position: relative;
+}
+
+.defenseContent {
   display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.manageMenu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+  min-width: 160px;
+  overflow: hidden;
+}
+
+.menuItem {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  color: var(--text-primary);
+  border: none;
+  text-align: left;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
+}
+
+.menuItem:hover {
+  background: var(--bg-secondary);
+}
+
+.menuItem:last-child {
+  color: #e74c3c;
+}
+
+.menuItem:last-child:hover {
+  background: rgba(231, 76, 60, 0.1);
 }
 
 .monstersRow {
@@ -271,7 +366,7 @@
   color: var(--text-primary);
   font-weight: 500;
   text-align: center;
-  max-width: 100px;
+  max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

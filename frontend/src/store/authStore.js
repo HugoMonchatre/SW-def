@@ -105,5 +105,7 @@ export const useAuthStore = create((set) => ({
     }
   },
 
+  setUser: (user) => set({ user }),
+
   clearError: () => set({ error: null })
 }));
