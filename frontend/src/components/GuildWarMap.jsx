@@ -1,30 +1,46 @@
 import { useState } from 'react';
 import styles from './GuildWarMap.module.css';
 
-// Tower layout: 4-3-2-1 pyramid with headquarters at top
+// Tower positions on the map (in percentage)
+// color: 'red' (top), 'blue' (left), 'yellow' (right)
 const TOWER_LAYOUT = [
-  { id: 'hq', row: 0, position: 0, type: 'headquarters' },
-  { id: 't1', row: 1, position: 0, type: 'tower' },
-  { id: 't2', row: 2, position: 0, type: 'tower' },
-  { id: 't3', row: 2, position: 1, type: 'tower' },
-  { id: 't4', row: 3, position: 0, type: 'tower' },
-  { id: 't5', row: 3, position: 1, type: 'tower' },
-  { id: 't6', row: 3, position: 2, type: 'tower' },
-  { id: 't7', row: 4, position: 0, type: 'tower' },
-  { id: 't8', row: 4, position: 1, type: 'tower' },
-  { id: 't9', row: 4, position: 2, type: 'tower' },
-  { id: 't10', row: 4, position: 3, type: 'tower' },
+  // Red towers (top area)
+  { id: 't1', x: 50, y: 10, type: 'tower', color: 'red' },
+  { id: 't2', x: 35, y: 20, type: 'tower', color: 'red' },
+  { id: 't3', x: 65, y: 20, type: 'tower', color: 'red' },
+  { id: 't4', x: 50, y: 30, type: 'tower', color: 'red' },
+
+  // Blue towers (left area)
+  { id: 't5', x: 20, y: 35, type: 'tower', color: 'blue' },
+  { id: 't6', x: 12, y: 50, type: 'tower', color: 'blue' },
+  { id: 't7', x: 25, y: 50, type: 'tower', color: 'blue' },
+  { id: 't8', x: 8, y: 65, type: 'tower', color: 'blue' },
+  { id: 't9', x: 20, y: 65, type: 'tower', color: 'blue' },
+  { id: 't10', x: 5, y: 80, type: 'tower', color: 'blue' },
+
+  // Yellow towers (right area)
+  { id: 't11', x: 80, y: 35, type: 'tower', color: 'yellow' },
+  { id: 't12', x: 75, y: 50, type: 'tower', color: 'yellow' },
+  { id: 't13', x: 88, y: 50, type: 'tower', color: 'yellow' },
+  { id: 't14', x: 80, y: 65, type: 'tower', color: 'yellow' },
+  { id: 't15', x: 92, y: 65, type: 'tower', color: 'yellow' },
+  { id: 't16', x: 95, y: 80, type: 'tower', color: 'yellow' },
+
+  // Headquarters (rectangles - no image for now)
+  { id: 'hq1', x: 5, y: 95, type: 'headquarters' },
+  { id: 'hq2', x: 50, y: 5, type: 'headquarters' },
+  { id: 'hq3', x: 95, y: 95, type: 'headquarters' },
 ];
+
+// Map color to image
+const TOWER_IMAGES = {
+  red: '/TowerR.png',
+  blue: '/TowerB.png',
+  yellow: '/TowerY.png',
+};
 
 function GuildWarMap({ guild, members = [], onTowerClick }) {
   const [selectedTower, setSelectedTower] = useState(null);
-
-  // Group towers by row
-  const rows = TOWER_LAYOUT.reduce((acc, tower) => {
-    if (!acc[tower.row]) acc[tower.row] = [];
-    acc[tower.row].push(tower);
-    return acc;
-  }, {});
 
   const handleTowerClick = (tower) => {
     setSelectedTower(tower.id === selectedTower ? null : tower.id);
@@ -35,7 +51,6 @@ function GuildWarMap({ guild, members = [], onTowerClick }) {
 
   const getTowerStatus = (towerId) => {
     // TODO: Connect to actual defense data
-    // For now, return random status for demo
     return 'available'; // 'available', 'assigned', 'destroyed'
   };
 
@@ -45,57 +60,60 @@ function GuildWarMap({ guild, members = [], onTowerClick }) {
         <h3>Carte de Guerre</h3>
         <div className={styles.mapLegend}>
           <span className={styles.legendItem}>
-            <span className={`${styles.legendDot} ${styles.available}`}></span>
-            Disponible
+            <img src="/TowerR.png" alt="Rouge" className={styles.legendIcon} />
+            Rouge
           </span>
           <span className={styles.legendItem}>
-            <span className={`${styles.legendDot} ${styles.assigned}`}></span>
-            Assigné
+            <img src="/TowerB.png" alt="Bleu" className={styles.legendIcon} />
+            Bleu
           </span>
           <span className={styles.legendItem}>
-            <span className={`${styles.legendDot} ${styles.destroyed}`}></span>
-            Détruit
+            <img src="/TowerY.png" alt="Jaune" className={styles.legendIcon} />
+            Jaune
           </span>
         </div>
       </div>
 
       <div className={styles.battlefield}>
-        {Object.entries(rows).map(([rowIndex, towers]) => (
-          <div key={rowIndex} className={styles.towerRow}>
-            {towers.map((tower) => (
-              <button
-                key={tower.id}
-                className={`
-                  ${styles.tower}
-                  ${tower.type === 'headquarters' ? styles.headquarters : ''}
-                  ${styles[getTowerStatus(tower.id)]}
-                  ${selectedTower === tower.id ? styles.selected : ''}
-                `}
-                onClick={() => handleTowerClick(tower)}
-                title={tower.type === 'headquarters' ? 'QG' : `Tour ${tower.id.replace('t', '')}`}
-              >
-                {tower.type === 'headquarters' ? (
-                  <div className={styles.towerIcon}>
-                    <span className={styles.hqIcon}>HQ</span>
-                  </div>
-                ) : (
-                  <div className={styles.towerIcon}>
-                    <span className={styles.towerNumber}>{tower.id.replace('t', '')}</span>
-                  </div>
-                )}
-                <div className={styles.towerHealth}>
-                  <div className={styles.healthBar} style={{ width: '100%' }}></div>
-                </div>
-              </button>
-            ))}
-          </div>
+        <img
+          src="/gw-map.png"
+          alt="Guild War Map"
+          className={styles.mapBackground}
+        />
+
+        {TOWER_LAYOUT.map((tower) => (
+          <button
+            key={tower.id}
+            className={`
+              ${styles.tower}
+              ${tower.type === 'headquarters' ? styles.headquarters : ''}
+              ${selectedTower === tower.id ? styles.selected : ''}
+            `}
+            style={{
+              left: `${tower.x}%`,
+              top: `${tower.y}%`,
+            }}
+            onClick={() => handleTowerClick(tower)}
+            title={tower.type === 'headquarters' ? 'QG' : `Tour ${tower.id.replace('t', '')}`}
+          >
+            {tower.type === 'tower' && tower.color && (
+              <img
+                src={TOWER_IMAGES[tower.color]}
+                alt={`Tour ${tower.color}`}
+                className={styles.towerImage}
+              />
+            )}
+            {tower.type === 'headquarters' && (
+              <span className={styles.hqLabel}>QG</span>
+            )}
+          </button>
         ))}
       </div>
 
       {selectedTower && (
         <div className={styles.towerDetails}>
           <h4>
-            {selectedTower === 'hq' ? 'Quartier Général' : `Tour ${selectedTower.replace('t', '')}`}
+            {selectedTower.startsWith('hq') ? 'Quartier Général' : `Tour ${selectedTower.replace('t', '')}`}
           </h4>
           <p className={styles.towerInfo}>
             Cliquez pour assigner des défenses à cette position
