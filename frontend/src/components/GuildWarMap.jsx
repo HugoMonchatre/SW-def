@@ -5,10 +5,11 @@ import styles from './GuildWarMap.module.css';
 // color: 'red' (top), 'blue' (left), 'yellow' (right)
 const TOWER_LAYOUT = [
   // Red towers (top area)
-  { id: 't1', x: 50, y: 10, type: 'tower', color: 'red' },
-  { id: 't2', x: 35, y: 20, type: 'tower', color: 'red' },
-  { id: 't3', x: 65, y: 20, type: 'tower', color: 'red' },
-  { id: 't4', x: 50, y: 30, type: 'tower', color: 'red' },
+  { id: 't1', x: 51, y: 19, type: 'tower', color: 'red' },
+  { id: 't2', x: 33, y: 19, type: 'tower', color: 'red' },
+  { id: 't3', x: 66, y: 19, type: 'tower', color: 'red' },
+  { id: 't4', x: 42, y: 26, type: 'tower', color: 'red' },
+  { id: 't5', x: 58, y: 27, type: 'tower', color: 'red' },
 
   // Blue towers (left area)
   { id: 't5', x: 20, y: 35, type: 'tower', color: 'blue' },
@@ -16,7 +17,7 @@ const TOWER_LAYOUT = [
   { id: 't7', x: 25, y: 50, type: 'tower', color: 'blue' },
   { id: 't8', x: 8, y: 65, type: 'tower', color: 'blue' },
   { id: 't9', x: 20, y: 65, type: 'tower', color: 'blue' },
-  { id: 't10', x: 5, y: 80, type: 'tower', color: 'blue' },
+  { id: 't10', x: 30, y: 80, type: 'tower', color: 'blue' },
 
   // Yellow towers (right area)
   { id: 't11', x: 80, y: 35, type: 'tower', color: 'yellow' },

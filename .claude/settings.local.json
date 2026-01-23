@@ -25,7 +25,8 @@
       "Bash(npm start)",
       "Bash(cat:*)",
       "Bash(node scripts/initAdmin.js:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(identify:*)"
     ]
   }
 }

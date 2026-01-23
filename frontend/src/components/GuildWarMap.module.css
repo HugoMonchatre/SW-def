@@ -60,11 +60,12 @@
 }
 
 /* Tower base styles - positioned absolutely on the map */
+/* Size is 7% of container width, scales with map size */
 .tower {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 70px;
-  height: 70px;
+  width: 7%;
+  aspect-ratio: 1;
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -105,8 +106,8 @@
 
 /* Headquarters special styling */
 .headquarters {
-  width: 50px;
-  height: 30px;
+  width: 8%;
+  aspect-ratio: 5 / 3;
   background: rgba(0, 0, 0, 0.6);
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 6px;
@@ -146,22 +147,8 @@
 
 /* Responsive */
 @media (max-width: 600px) {
-  .battlefield {
-    aspect-ratio: 4 / 3;
-  }
-
-  .tower {
-    width: 30px;
-    height: 30px;
-  }
-
-  .headquarters {
-    width: 40px;
-    height: 24px;
-  }
-
   .hqLabel {
-    font-size: 0.6rem;
+    font-size: 0.5rem;
   }
 
   .legendIcon {
