@@ -10,9 +10,16 @@ const TOWER_LAYOUT = [
   { id: 't3', x: 66, y: 19, type: 'tower', color: 'red' },
   { id: 't4', x: 42, y: 26, type: 'tower', color: 'red' },
   { id: 't5', x: 58, y: 27, type: 'tower', color: 'red' },
+  { id: 't6', x: 29, y: 34, type: 'tower', color: 'red' },
+  { id: 't7', x: 38, y: 39, type: 'tower', color: 'red' },
+  { id: 't8', x: 19, y: 30, type: 'tower', color: 'red' },
+  { id: 't9', x: 50, y: 42, type: 'tower', color: 'red' },
+  { id: 't10', x: 62, y: 40, type: 'tower', color: 'red' },
+  { id: 't11', x: 72, y: 35, type: 'tower', color: 'red' },
+  { id: 't12', x: 82, y: 31, type: 'tower', color: 'red' },
 
   // Blue towers (left area)
-  { id: 't5', x: 20, y: 35, type: 'tower', color: 'blue' },
+  { id: 't5', x: 42, y: 55, type: 'tower', color: 'blue' },
   { id: 't6', x: 12, y: 50, type: 'tower', color: 'blue' },
   { id: 't7', x: 25, y: 50, type: 'tower', color: 'blue' },
   { id: 't8', x: 8, y: 65, type: 'tower', color: 'blue' },
@@ -20,12 +27,13 @@ const TOWER_LAYOUT = [
   { id: 't10', x: 30, y: 80, type: 'tower', color: 'blue' },
 
   // Yellow towers (right area)
-  { id: 't11', x: 80, y: 35, type: 'tower', color: 'yellow' },
-  { id: 't12', x: 75, y: 50, type: 'tower', color: 'yellow' },
-  { id: 't13', x: 88, y: 50, type: 'tower', color: 'yellow' },
+  { id: 't11', x: 57, y: 56, type: 'tower', color: 'yellow' },
+  { id: 't12', x: 68, y: 51, type: 'tower', color: 'yellow' },
+  { id: 't13', x: 91, y: 48, type: 'tower', color: 'yellow' },
   { id: 't14', x: 80, y: 65, type: 'tower', color: 'yellow' },
-  { id: 't15', x: 92, y: 65, type: 'tower', color: 'yellow' },
-  { id: 't16', x: 95, y: 80, type: 'tower', color: 'yellow' },
+  { id: 't15', x: 96, y: 65, type: 'tower', color: 'yellow' },
+  { id: 't16', x: 83, y: 78, type: 'tower', color: 'yellow' },
+  { id: 't17', x: 80, y: 49, type: 'tower', color: 'yellow' },
 
   // Headquarters (rectangles - no image for now)
   { id: 'hq1', x: 5, y: 95, type: 'headquarters' },
@@ -75,7 +83,10 @@ function GuildWarMap({ guild, members = [], onTowerClick }) {
         </div>
       </div>
 
-      <div className={styles.battlefield}>
+      <div
+        className={styles.battlefield}
+        onClick={() => setSelectedTower(null)}
+      >
         <img
           src="/gw-map.png"
           alt="Guild War Map"
@@ -94,7 +105,10 @@ function GuildWarMap({ guild, members = [], onTowerClick }) {
               left: `${tower.x}%`,
               top: `${tower.y}%`,
             }}
-            onClick={() => handleTowerClick(tower)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleTowerClick(tower);
+            }}
             title={tower.type === 'headquarters' ? 'QG' : `Tour ${tower.id.replace('t', '')}`}
           >
             {tower.type === 'tower' && tower.color && (
