@@ -1,11 +1,13 @@
 import styles from './Modal.module.css';
 
-function Modal({ isOpen, onClose, title, children, actions }) {
+function Modal({ isOpen, onClose, title, children, actions, size = 'default' }) {
   if (!isOpen) return null;
+
+  const sizeClass = size === 'large' ? styles.modalLarge : size === 'wide' ? styles.modalWide : '';
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+      <div className={`${styles.modal} ${sizeClass}`} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <h2>{title}</h2>
           <button className={styles.closeBtn} onClick={onClose}>

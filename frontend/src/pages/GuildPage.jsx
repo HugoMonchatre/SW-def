@@ -528,7 +528,7 @@ function GuildPage() {
         {/* Guild War Map */}
         {!showAllGuilds && myGuild && (
           <div className={`${styles.mapWrapper} ${isMapCollapsed ? styles.mapCollapsed : ''}`}>
-            <GuildWarMap guild={myGuild} members={myGuild.members} />
+            <GuildWarMap guild={myGuild} user={user} members={myGuild.members} onToast={showToast} />
           </div>
         )}
 

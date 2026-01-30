@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { useThemeStore } from './store/themeStore';
 import { useEffect } from 'react';
@@ -8,6 +8,18 @@ import DashboardPage from './pages/DashboardPage';
 import GuildPage from './pages/GuildPage';
 import AdminPage from './pages/AdminPage';
 import Navbar from './components/Navbar';
+
+// Wrapper to conditionally show Navbar (hide on homepage)
+function ConditionalNavbar() {
+  const location = useLocation();
+
+  // Don't show navbar on homepage - it has its own header
+  if (location.pathname === '/') {
+    return null;
+  }
+
+  return <Navbar />;
+}
 
 // Component to handle dashboard route with OAuth callback support
 function DashboardRoute() {
@@ -68,12 +80,12 @@ function App() {
 
   return (
     <Router>
-      <Navbar />
+      <ConditionalNavbar />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route
           path="/login"
-          element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />}
+          element={isAuthenticated ? <Navigate to="/" /> : <LoginPage />}
         />
         <Route
           path="/dashboard"

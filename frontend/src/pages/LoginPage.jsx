@@ -25,7 +25,7 @@ function LoginPage() {
       : await register(formData.name, formData.email, formData.password);
 
     if (success) {
-      navigate('/dashboard');
+      navigate('/');
     }
   };
 

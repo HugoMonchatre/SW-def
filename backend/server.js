@@ -13,6 +13,7 @@ import invitationRoutes from './routes/invitations.js';
 import defenseRoutes from './routes/defenses.js';
 import offenseRoutes from './routes/offenses.js';
 import inventoryRoutes from './routes/inventory.js';
+import towerRoutes from './routes/towers.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -51,6 +52,7 @@ app.use('/api/invitations', invitationRoutes);
 app.use('/api/defenses', defenseRoutes);
 app.use('/api/offenses', offenseRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/towers', towerRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

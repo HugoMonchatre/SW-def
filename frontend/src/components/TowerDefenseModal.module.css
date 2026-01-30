@@ -1,0 +1,677 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.splitLayout {
+  display: flex;
+  gap: 1rem;
+  min-height: 350px;
+}
+
+.leftPanel,
+.rightPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.leftPanel {
+  border-right: 1px solid var(--border-color);
+  padding-right: 1rem;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sectionTitle {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.loading {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 2rem;
+  font-size: 0.85rem;
+}
+
+.emptyState {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.towerFullWarning {
+  color: #f59e0b;
+  text-align: center;
+  padding: 0.75rem;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.restrictionWarning {
+  color: #3b82f6;
+  text-align: center;
+  padding: 0.5rem 0.75rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+/* Memo section */
+.memoSection {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.memoHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.memoLabel {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.memoEditBtn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.memoEditBtn:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.memoContent {
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.memoEmpty {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.memoEditForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.memoTextarea {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+.memoTextarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.memoTextarea::placeholder {
+  color: var(--text-secondary);
+}
+
+.memoActions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.memoCancelBtn,
+.memoSaveBtn {
+  padding: 0.35rem 0.75rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.memoCancelBtn {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.memoCancelBtn:hover:not(:disabled) {
+  border-color: var(--text-secondary);
+}
+
+.memoSaveBtn {
+  background: var(--primary);
+  color: white;
+}
+
+.memoSaveBtn:hover:not(:disabled) {
+  background: var(--secondary);
+}
+
+.memoCancelBtn:disabled,
+.memoSaveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.defenseList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.availableList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 350px;
+}
+
+.defenseCard,
+.availableCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.defenseCard:hover {
+  border-color: var(--primary);
+}
+
+.availableCard {
+  cursor: pointer;
+}
+
+.availableCard:hover:not(.disabled) {
+  border-color: var(--primary);
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+
+.availableCard.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.defenseInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.defenseName {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.monsterList {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.monsterItem {
+  display: flex;
+  align-items: center;
+}
+
+.monsterImage {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.removeBtn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.removeBtn:hover {
+  color: #e53e3e;
+}
+
+.addIcon {
+  color: var(--primary);
+  font-size: 1.25rem;
+  font-weight: bold;
+  padding: 0 0.25rem;
+  flex-shrink: 0;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.searchInput::placeholder {
+  color: var(--text-secondary);
+}
+
+.searchInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.noPermission {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 2rem 1rem;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* Create new defense button */
+.btnCreateNew {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btnCreateNew:hover:not(:disabled) {
+  background: var(--secondary);
+}
+
+.btnCreateNew:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Fill tower button */
+.btnFillTower {
+  background: #38a169;
+  color: white;
+  border: none;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btnFillTower:hover {
+  background: #2f855a;
+}
+
+/* Create form styles */
+.createForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.formGroup label {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* Monster slots */
+.monsterSlots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.monsterSlots label {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.slots {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.slot {
+  position: relative;
+  width: 55px;
+  height: 55px;
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--bg-primary);
+}
+
+.slot:hover {
+  border-color: var(--primary);
+}
+
+.slot.active {
+  border-color: var(--primary);
+  border-style: solid;
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.3);
+}
+
+.slot.filled {
+  border-style: solid;
+  cursor: default;
+}
+
+.slotPlaceholder {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.slotImage {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 2px solid;
+}
+
+.slotName {
+  position: absolute;
+  bottom: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slotLeader {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: 16px;
+  height: 16px;
+  background: #f1c40f;
+  color: #000;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slotRemoveBtn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: #e53e3e;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: transform 0.2s;
+}
+
+.slotRemoveBtn:hover {
+  transform: scale(1.1);
+}
+
+/* Search section */
+.searchSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.searchLoading {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 0.35rem;
+}
+
+.searchResults {
+  max-height: 120px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+}
+
+.searchResult {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.searchResult:hover {
+  background: var(--bg-secondary);
+}
+
+.searchResult:not(:last-child) {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.resultImage {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.resultInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.resultName {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.resultMeta {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+/* Form actions */
+.formActions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+
+.btnCancel,
+.btnSave {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnCancel {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btnCancel:hover {
+  border-color: var(--text-secondary);
+}
+
+.btnSave {
+  background: var(--primary);
+  color: white;
+}
+
+.btnSave:hover:not(:disabled) {
+  background: var(--secondary);
+}
+
+.btnSave:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .splitLayout {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .leftPanel {
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    padding-right: 0;
+    padding-bottom: 1rem;
+  }
+
+  .availableList {
+    max-height: 150px;
+  }
+
+  .slot {
+    width: 50px;
+    height: 50px;
+  }
+
+  .slotImage {
+    width: 35px;
+    height: 35px;
+  }
+
+  .formActions {
+    flex-direction: column;
+  }
+
+  .btnCancel,
+  .btnSave {
+    width: 100%;
+  }
+}
