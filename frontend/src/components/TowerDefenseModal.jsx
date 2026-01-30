@@ -1,23 +1,45 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Modal } from './Modal';
+import { getTowerDisplayName } from './guildWarMapConfig';
 import axios from 'axios';
 import styles from './TowerDefenseModal.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const MAX_DEFENSES_PER_TOWER = 5;
-const MAX_4_STAR_TOWERS = ['2', '7', '11']; // Tours avec restriction 4 étoiles max
+const MAX_4_STAR_TOWERS = ['2', '7', '11'];
 
-// Vérifie si la tour a la restriction 4 étoiles
+const ELEMENT_COLORS = {
+  Fire: '#e74c3c',
+  Water: '#3498db',
+  Wind: '#f1c40f',
+  Light: '#ecf0f1',
+  Dark: '#9b59b6',
+};
+
+// Check if tower has 4-star restriction
 const is4StarTower = (towerId) => {
   if (!towerId) return false;
-  const towerNumber = towerId.slice(1); // Enlève le préfixe couleur (r, b, y)
-  return MAX_4_STAR_TOWERS.includes(towerNumber);
+  return MAX_4_STAR_TOWERS.includes(towerId.slice(1));
 };
 
-// Vérifie si une défense n'a que des monstres 4 étoiles ou moins
+// Check if defense only has 4-star or less monsters
 const isDefenseValid4Star = (defense) => {
-  return defense.monsters.every(monster => monster.natural_stars <= 4);
+  return defense.monsters.every(m => m.natural_stars <= 4);
 };
+
+// Get element color
+const getElementColor = (element) => ELEMENT_COLORS[element] || '#95a5a6';
+
+// Render monster list (extracted to avoid recreation)
+const MonsterList = ({ monsters }) => (
+  <div className={styles.monsterList}>
+    {monsters.map((monster, idx) => (
+      <div key={idx} className={styles.monsterItem}>
+        <img src={monster.image} alt={monster.name} className={styles.monsterImage} />
+      </div>
+    ))}
+  </div>
+);
 
 function TowerDefenseModal({
   isOpen,
@@ -359,46 +381,13 @@ function TowerDefenseModal({
     }
   };
 
-  const getTowerName = () => {
-    if (!tower) return '';
-    if (tower.id.startsWith('hq')) return 'Quartier Général';
-
-    const colorMap = { r: 'Rouge', b: 'Bleue', y: 'Jaune' };
-    const color = colorMap[tower.id.charAt(0)] || '';
-    const number = tower.id.slice(1);
-    return `Tour ${color} ${number}`;
-  };
-
-  const getElementColor = (element) => {
-    const colors = {
-      Fire: '#e74c3c',
-      Water: '#3498db',
-      Wind: '#f1c40f',
-      Light: '#ecf0f1',
-      Dark: '#9b59b6'
-    };
-    return colors[element] || '#95a5a6';
-  };
-
-  const renderMonsters = (monsters) => (
-    <div className={styles.monsterList}>
-      {monsters.map((monster, idx) => (
-        <div key={idx} className={styles.monsterItem}>
-          <img
-            src={monster.image}
-            alt={monster.name}
-            className={styles.monsterImage}
-          />
-        </div>
-      ))}
-    </div>
-  );
+  const towerName = useMemo(() => getTowerDisplayName(tower?.id), [tower?.id]);
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={getTowerName()}
+      title={towerName}
       size="wide"
     >
       <div className={styles.container}>
@@ -484,7 +473,7 @@ function TowerDefenseModal({
                   <div key={`${defense._id}-${index}`} className={styles.defenseCard}>
                     <div className={styles.defenseInfo}>
                       <span className={styles.defenseName}>{defense.name}</span>
-                      {renderMonsters(defense.monsters)}
+                      <MonsterList monsters={defense.monsters} />
                     </div>
                     {canEdit && (
                       <button
@@ -656,7 +645,7 @@ function TowerDefenseModal({
                           >
                             <div className={styles.defenseInfo}>
                               <span className={styles.defenseName}>{defense.name}</span>
-                              {renderMonsters(defense.monsters)}
+                              <MonsterList monsters={defense.monsters} />
                             </div>
                             {!isTowerFull && <span className={styles.addIcon}>+</span>}
                           </div>

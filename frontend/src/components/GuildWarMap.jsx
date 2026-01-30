@@ -1,67 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import TowerDefenseModal from './TowerDefenseModal';
+import {
+  TOWER_LAYOUT,
+  LEGEND_ITEMS,
+  getTowerDisplayName,
+  getTowerImagePath,
+} from './guildWarMapConfig';
 import axios from 'axios';
 import styles from './GuildWarMap.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-// Tower positions on the map (in percentage)
-// color: 'red' (top), 'blue' (left), 'yellow' (right)
-const TOWER_LAYOUT = [
-  // Red towers (top area) - prefixed with 'r'
-  { id: 'r2', x: 51, y: 19, type: 'tower', color: 'red' },
-  { id: 'r3', x: 33, y: 19, type: 'tower', color: 'red' },
-  { id: 'r1', x: 66, y: 19, type: 'tower', color: 'red' },
-  { id: 'r5', x: 42, y: 26, type: 'tower', color: 'red' },
-  { id: 'r4', x: 58, y: 27, type: 'tower', color: 'red' },
-  { id: 'r11', x: 29, y: 34, type: 'tower', color: 'red' },
-  { id: 'r10', x: 38, y: 39, type: 'tower', color: 'red' },
-  { id: 'r12', x: 19, y: 30, type: 'tower', color: 'red' },
-  { id: 'r9', x: 50, y: 42, type: 'tower', color: 'red' },
-  { id: 'r8', x: 62, y: 40, type: 'tower', color: 'red' },
-  { id: 'r7', x: 72, y: 35, type: 'tower', color: 'red' },
-  { id: 'r6', x: 82, y: 31, type: 'tower', color: 'red' },
-
-  // Blue towers (left area) - prefixed with 'b'
-  { id: 'b9', x: 42, y: 55, type: 'tower', color: 'blue' },
-  { id: 'b6', x: 9, y: 50, type: 'tower', color: 'blue' },
-  { id: 'b7', x: 21, y: 47, type: 'tower', color: 'blue' },
-  { id: 'b8', x: 31, y: 51, type: 'tower', color: 'blue' },
-  { id: 'b1', x: 4, y: 65, type: 'tower', color: 'blue' },
-  { id: 'b4', x: 23, y: 63, type: 'tower', color: 'blue' },
-  { id: 'b10', x: 43, y: 69, type: 'tower', color: 'blue' },
-  { id: 'b11', x: 47, y: 85, type: 'tower', color: 'blue' },
-  { id: 'b12', x: 39, y: 93, type: 'tower', color: 'blue' },
-  { id: 'b3', x: 25, y: 93, type: 'tower', color: 'blue' },
-  { id: 'b5', x: 32, y: 76, type: 'tower', color: 'blue' },
-  { id: 'b2', x: 16, y: 77, type: 'tower', color: 'blue' },
-
-  // Yellow towers (right area) - prefixed with 'y'
-  { id: 'y9', x: 57, y: 56, type: 'tower', color: 'yellow' },
-  { id: 'y10', x: 68, y: 51, type: 'tower', color: 'yellow' },
-  { id: 'y12', x: 91, y: 48, type: 'tower', color: 'yellow' },
-  { id: 'y5', x: 80, y: 65, type: 'tower', color: 'yellow' },
-  { id: 'y1', x: 96, y: 65, type: 'tower', color: 'yellow' },
-  { id: 'y2', x: 83, y: 78, type: 'tower', color: 'yellow' },
-  { id: 'y11', x: 80, y: 49, type: 'tower', color: 'yellow' },
-  { id: 'y8', x: 55, y: 70, type: 'tower', color: 'yellow' },
-  { id: 'y6', x: 55, y: 94, type: 'tower', color: 'yellow' },
-  { id: 'y7', x: 59, y: 83, type: 'tower', color: 'yellow' },
-  { id: 'y4', x: 68, y: 70, type: 'tower', color: 'yellow' },
-  { id: 'y3', x: 72, y: 91, type: 'tower', color: 'yellow' },
-
-  // Headquarters (rectangles - no image for now)
-  { id: 'hq1', x: 5, y: 95, type: 'headquarters' },
-  { id: 'hq2', x: 50, y: 5, type: 'headquarters' },
-  { id: 'hq3', x: 95, y: 95, type: 'headquarters' },
-];
-
-// Default tower images (when no defenses or for colors without dynamic images)
-const DEFAULT_TOWER_IMAGES = {
-  red: '/TowerR.png',
-  blue: '/TowerB.png',
-  yellow: '/TowerY.png',
-};
 
 function GuildWarMap({ guild, user, members = [], onTowerClick, onToast }) {
   const [selectedTower, setSelectedTower] = useState(null);
@@ -69,20 +17,15 @@ function GuildWarMap({ guild, user, members = [], onTowerClick, onToast }) {
   const [towerDefenseCounts, setTowerDefenseCounts] = useState({});
 
   // Fetch all tower defense counts
-  useEffect(() => {
-    if (guild?._id) {
-      fetchTowerDefenses();
-    }
-  }, [guild?._id]);
+  const fetchTowerDefenses = useCallback(async () => {
+    if (!guild?._id) return;
 
-  const fetchTowerDefenses = async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API_URL}/towers/${guild._id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Build a map of towerId -> defense count
       const counts = {};
       (response.data.towers || []).forEach(tower => {
         counts[tower.towerId] = tower.defenses?.length || 0;
@@ -91,61 +34,52 @@ function GuildWarMap({ guild, user, members = [], onTowerClick, onToast }) {
     } catch (error) {
       console.error('Error fetching tower defenses:', error);
     }
-  };
+  }, [guild?._id]);
 
-  const handleTowerClick = (tower) => {
-    setSelectedTower(tower.id === selectedTower ? null : tower.id);
-    setModalTower(tower);
-    if (onTowerClick) {
-      onTowerClick(tower);
-    }
-  };
-
-  const handleCloseModal = () => {
-    setModalTower(null);
-  };
-
-  const handleDefenseUpdate = () => {
-    // Refresh tower defense counts when a defense is added/removed
+  useEffect(() => {
     fetchTowerDefenses();
-  };
+  }, [fetchTowerDefenses]);
 
-  const getTowerImage = (tower) => {
+  const handleTowerClick = useCallback((tower) => {
+    setSelectedTower(prev => prev === tower.id ? null : tower.id);
+    setModalTower(tower);
+    onTowerClick?.(tower);
+  }, [onTowerClick]);
+
+  const handleCloseModal = useCallback(() => {
+    setModalTower(null);
+  }, []);
+
+  const handleBattlefieldClick = useCallback(() => {
+    setSelectedTower(null);
+  }, []);
+
+  // Memoize tower image getter
+  const getTowerImage = useCallback((tower) => {
     const defenseCount = towerDefenseCounts[tower.id] || 0;
+    return getTowerImagePath(tower, defenseCount);
+  }, [towerDefenseCounts]);
 
-    // For blue towers, use dynamic images based on defense count
-    if (tower.color === 'blue') {
-      return `/TowerB/TowerB${defenseCount}.png`;
-    }
-
-    // For other colors, use default images
-    return DEFAULT_TOWER_IMAGES[tower.color];
-  };
+  // Memoize selected tower display name
+  const selectedTowerName = useMemo(() => {
+    return getTowerDisplayName(selectedTower);
+  }, [selectedTower]);
 
   return (
     <div className={styles.mapContainer}>
       <div className={styles.mapHeader}>
         <h3>Carte de Guerre</h3>
         <div className={styles.mapLegend}>
-          <span className={styles.legendItem}>
-            <img src="/TowerR.png" alt="Rouge" className={styles.legendIcon} />
-            Rouge
-          </span>
-          <span className={styles.legendItem}>
-            <img src="/TowerB.png" alt="Bleu" className={styles.legendIcon} />
-            Bleu
-          </span>
-          <span className={styles.legendItem}>
-            <img src="/TowerY.png" alt="Jaune" className={styles.legendIcon} />
-            Jaune
-          </span>
+          {LEGEND_ITEMS.map(({ color, image, label }) => (
+            <span key={color} className={styles.legendItem}>
+              <img src={image} alt={label} className={styles.legendIcon} />
+              {label}
+            </span>
+          ))}
         </div>
       </div>
 
-      <div
-        className={styles.battlefield}
-        onClick={() => setSelectedTower(null)}
-      >
+      <div className={styles.battlefield} onClick={handleBattlefieldClick}>
         <img
           src="/gw-map.png"
           alt="Guild War Map"
@@ -160,15 +94,12 @@ function GuildWarMap({ guild, user, members = [], onTowerClick, onToast }) {
               ${tower.type === 'headquarters' ? styles.headquarters : ''}
               ${selectedTower === tower.id ? styles.selected : ''}
             `}
-            style={{
-              left: `${tower.x}%`,
-              top: `${tower.y}%`,
-            }}
+            style={{ left: `${tower.x}%`, top: `${tower.y}%` }}
             onClick={(e) => {
               e.stopPropagation();
               handleTowerClick(tower);
             }}
-            title={tower.type === 'headquarters' ? 'QG' : `Tour ${tower.id.replace('t', '')}`}
+            title={tower.type === 'headquarters' ? 'QG' : `Tour ${tower.id}`}
           >
             {tower.type === 'tower' && tower.color && (
               <img
@@ -186,11 +117,7 @@ function GuildWarMap({ guild, user, members = [], onTowerClick, onToast }) {
 
       {selectedTower && (
         <div className={styles.towerDetails}>
-          <h4>
-            {selectedTower.startsWith('hq')
-              ? 'Quartier Général'
-              : `Tour ${selectedTower.charAt(0).toUpperCase() === 'R' ? 'Rouge' : selectedTower.charAt(0).toUpperCase() === 'B' ? 'Bleue' : 'Jaune'} ${selectedTower.slice(1)}`}
-          </h4>
+          <h4>{selectedTowerName}</h4>
           <p className={styles.towerInfo}>
             Cliquez pour assigner des défenses à cette position
           </p>
@@ -204,7 +131,7 @@ function GuildWarMap({ guild, user, members = [], onTowerClick, onToast }) {
         guild={guild}
         user={user}
         onToast={onToast}
-        onDefenseUpdate={handleDefenseUpdate}
+        onDefenseUpdate={fetchTowerDefenses}
       />
     </div>
   );
