@@ -46,6 +46,27 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  username: {
+    type: String,
+    sparse: true,
+    trim: true
+  },
+  swData: {
+    wizardId: Number,
+    wizardName: String,
+    wizardLevel: Number,
+    lastUpload: Date,
+    unitCount: Number,
+    runeCount: Number,
+    bestRuneSets: {
+      swift: Number,
+      swiftWill: Number,
+      violent: Number,
+      violentWill: Number,
+      despair: Number,
+      despairWill: Number
+    }
   }
 }, {
   timestamps: true

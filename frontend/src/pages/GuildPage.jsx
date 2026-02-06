@@ -8,6 +8,7 @@ import JoinRequestCard from '../components/JoinRequestCard';
 import MembersList from '../components/MembersList';
 import AddMemberModal from '../components/AddMemberModal';
 import GuildWarMap from '../components/GuildWarMap';
+import GuildRuneStats from '../components/GuildRuneStats';
 import axios from 'axios';
 import styles from './GuildPage.module.css';
 
@@ -31,6 +32,7 @@ function GuildPage() {
   const [isDefenseCollapsed, setIsDefenseCollapsed] = useState(false);
   const [isMapCollapsed, setIsMapCollapsed] = useState(false);
   const [showAllGuilds, setShowAllGuilds] = useState(false);
+  const [viewMode, setViewMode] = useState('guild'); // 'guild' or 'runeStats'
   const [joinRequests, setJoinRequests] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
 
@@ -386,8 +388,8 @@ function GuildPage() {
           <div className={styles.headerActions}>
             {myGuild && (
               <button
-                className={`${styles.btnTab} ${showAllGuilds ? '' : styles.active}`}
-                onClick={() => setShowAllGuilds(false)}
+                className={`${styles.btnTab} ${!showAllGuilds && viewMode === 'guild' ? styles.active : ''}`}
+                onClick={() => { setShowAllGuilds(false); setViewMode('guild'); }}
               >
                 Ma Guilde
               </button>
@@ -407,7 +409,31 @@ function GuildPage() {
               </button>
             )}
           </div>
+          {/* View Mode Toggle - Right side */}
+          {myGuild && !showAllGuilds && (
+            <div className={styles.viewToggle}>
+              <button
+                className={`${styles.viewToggleBtn} ${viewMode === 'guild' ? styles.active : ''}`}
+                onClick={() => setViewMode('guild')}
+                title="Vue Guilde"
+              >
+                <span className={styles.viewIcon}>🏰</span>
+              </button>
+              <button
+                className={`${styles.viewToggleBtn} ${viewMode === 'runeStats' ? styles.active : ''}`}
+                onClick={() => setViewMode('runeStats')}
+                title="Statistiques Runes"
+              >
+                <span className={styles.viewIcon}>📊</span>
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Rune Stats View */}
+        {!showAllGuilds && myGuild && viewMode === 'runeStats' && (
+          <GuildRuneStats guildId={myGuild._id} />
+        )}
 
         {/* No Guild Message */}
         {!myGuild && !showAllGuilds && (
@@ -439,7 +465,7 @@ function GuildPage() {
         )}
 
         {/* Collapse Button for Guild */}
-        {!showAllGuilds && myGuild && (
+        {!showAllGuilds && myGuild && viewMode === 'guild' && (
           <button
             className={`${styles.btnCollapse} ${isGuildCollapsed ? styles.collapsed : ''}`}
             onClick={() => setIsGuildCollapsed(!isGuildCollapsed)}
@@ -454,7 +480,7 @@ function GuildPage() {
         )}
 
         {/* My Guild Section */}
-        {!showAllGuilds && myGuild && (
+        {!showAllGuilds && myGuild && viewMode === 'guild' && (
           <div className={styles.myGuildWrapper}>
             <div className={`${styles.myGuild} ${isGuildCollapsed ? styles.guildCollapsed : ''}`}>
               <GuildHeader
@@ -497,7 +523,7 @@ function GuildPage() {
         )}
 
         {/* Collapse Button for Defense */}
-        {!showAllGuilds && myGuild && (
+        {!showAllGuilds && myGuild && viewMode === 'guild' && (
           <button
             className={`${styles.btnCollapse} ${styles.btnCollapseDefense} ${isDefenseCollapsed ? styles.collapsed : ''}`}
             onClick={() => setIsDefenseCollapsed(!isDefenseCollapsed)}
@@ -508,14 +534,14 @@ function GuildPage() {
         )}
 
         {/* Defense Builder */}
-        {!showAllGuilds && myGuild && (
+        {!showAllGuilds && myGuild && viewMode === 'guild' && (
           <div className={`${styles.defenseWrapper} ${isDefenseCollapsed ? styles.defenseCollapsed : ''}`}>
             <DefenseBuilder guildId={myGuild._id} guild={myGuild} user={user} onToast={showToast} />
           </div>
         )}
 
         {/* Collapse Button for Map */}
-        {!showAllGuilds && myGuild && (
+        {!showAllGuilds && myGuild && viewMode === 'guild' && (
           <button
             className={`${styles.btnCollapse} ${styles.btnCollapseMap} ${isMapCollapsed ? styles.collapsed : ''}`}
             onClick={() => setIsMapCollapsed(!isMapCollapsed)}
@@ -526,7 +552,7 @@ function GuildPage() {
         )}
 
         {/* Guild War Map */}
-        {!showAllGuilds && myGuild && (
+        {!showAllGuilds && myGuild && viewMode === 'guild' && (
           <div className={`${styles.mapWrapper} ${isMapCollapsed ? styles.mapCollapsed : ''}`}>
             <GuildWarMap guild={myGuild} user={user} members={myGuild.members} onToast={showToast} />
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import axios from 'axios';
 import InvitationCard from '../components/InvitationCard';
@@ -22,13 +22,31 @@ function DashboardPage() {
     confirmPassword: ''
   });
   const [loading, setLoading] = useState(false);
+  const [swData, setSwData] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState({ type: '', message: '' });
+  const [isDragging, setIsDragging] = useState(false);
+  const [isSwDataCollapsed, setIsSwDataCollapsed] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (user?.guild) {
       fetchUserGuild();
     }
     fetchInvitations();
+    fetchSwData();
   }, [user]);
+
+  const fetchSwData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/users/me/sw-data`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSwData(response.data.swData);
+    } catch (error) {
+      console.error('Erreur lors du chargement des données SW:', error);
+    }
+  };
 
   const fetchUserGuild = async () => {
     try {
@@ -97,6 +115,90 @@ function DashboardPage() {
       alert(error.response?.data?.error || 'Erreur lors de la mise à jour du profil');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFileSelect = async (file) => {
+    if (!file) return;
+
+    // Check file extension
+    if (!file.name.endsWith('.json')) {
+      setUploadStatus({ type: 'error', message: 'Le fichier doit être au format JSON' });
+      return;
+    }
+
+    // Check file size (max 20MB)
+    if (file.size > 20 * 1024 * 1024) {
+      setUploadStatus({ type: 'error', message: 'Le fichier est trop volumineux (max 20MB)' });
+      return;
+    }
+
+    setLoading(true);
+    setUploadStatus({ type: '', message: '' });
+
+    try {
+      const text = await file.text();
+      let jsonData;
+
+      try {
+        jsonData = JSON.parse(text);
+      } catch {
+        setUploadStatus({ type: 'error', message: 'Le fichier JSON est invalide' });
+        setLoading(false);
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `${API_URL}/users/me/sw-data`,
+        { jsonData },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSwData(response.data.swData);
+      setUploadStatus({ type: 'success', message: 'Données importées avec succès !' });
+    } catch (error) {
+      setUploadStatus({
+        type: 'error',
+        message: error.response?.data?.error || 'Erreur lors de l\'import'
+      });
+    } finally {
+      setLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    handleFileSelect(file);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDeleteSwData = async () => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer vos données SW ?')) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_URL}/users/me/sw-data`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSwData(null);
+      setUploadStatus({ type: 'success', message: 'Données supprimées' });
+    } catch (error) {
+      setUploadStatus({ type: 'error', message: 'Erreur lors de la suppression' });
     }
   };
 
@@ -178,6 +280,16 @@ function DashboardPage() {
               </div>
             )}
           </div>
+          <div className={styles.headerActions}>
+            <button onClick={openProfileModal} className={styles.btnPrimary}>
+              Modifier le profil
+            </button>
+            {user?.provider === 'email' && (
+              <button onClick={openPasswordModal} className={styles.btnSecondary}>
+                Changer le mot de passe
+              </button>
+            )}
+          </div>
         </div>
 
         {invitations.length > 0 && (
@@ -195,18 +307,132 @@ function DashboardPage() {
           </div>
         )}
 
-        <div className={styles.profileSection}>
-          <h2>Paramètres du profil</h2>
-          <div className={styles.profileActions}>
-            <button onClick={openProfileModal} className={styles.btnPrimary}>
-              Modifier le profil
-            </button>
-            {user?.provider === 'email' && (
-              <button onClick={openPasswordModal} className={styles.btnSecondary}>
-                Changer le mot de passe
-              </button>
-            )}
-          </div>
+        <button
+          className={`${styles.btnCollapse} ${isSwDataCollapsed ? styles.collapsed : ''}`}
+          onClick={() => setIsSwDataCollapsed(!isSwDataCollapsed)}
+          title={isSwDataCollapsed ? 'Afficher les données SW' : 'Réduire les données SW'}
+        >
+          {isSwDataCollapsed ? '📊' : '↑'}
+        </button>
+
+        <div className={`${styles.swDataSection} ${isSwDataCollapsed ? styles.swDataCollapsed : ''}`}>
+          <h2>Données Summoners War</h2>
+
+          {uploadStatus.message && (
+            <div className={`${styles.uploadStatus} ${styles[uploadStatus.type]}`}>
+              {uploadStatus.message}
+            </div>
+          )}
+
+          {swData ? (
+            <div className={styles.swDataCard}>
+              <div className={styles.swDataInfo}>
+                <div className={styles.swDataMain}>
+                  <span className={styles.wizardName}>{swData.wizardName}</span>
+                  <span className={styles.wizardLevel}>Niveau {swData.wizardLevel}</span>
+                </div>
+                <div className={styles.swDataStats}>
+                  <div className={styles.swStat}>
+                    <span className={styles.swStatValue}>{swData.unitCount || 0}</span>
+                    <span className={styles.swStatLabel}>Monstres</span>
+                  </div>
+                  <div className={styles.swStat}>
+                    <span className={styles.swStatValue}>{swData.runeCount || 0}</span>
+                    <span className={styles.swStatLabel}>Runes</span>
+                  </div>
+                </div>
+                <p className={styles.swDataDate}>
+                  Dernière mise à jour : {new Date(swData.lastUpload).toLocaleDateString('fr-FR', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+              <div className={styles.swDataActions}>
+                <label className={styles.btnPrimary}>
+                  Mettre à jour
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={(e) => handleFileSelect(e.target.files[0])}
+                    style={{ display: 'none' }}
+                    ref={fileInputRef}
+                  />
+                </label>
+                <button onClick={handleDeleteSwData} className={styles.btnDanger}>
+                  Supprimer
+                </button>
+              </div>
+
+              {swData.bestRuneSets && (
+                <div className={styles.bestRuneSets}>
+                  <h3>Set le plus rapide sur base 100</h3>
+                  <div className={styles.runeSetsGrid}>
+                    <div className={styles.runeSetItem}>
+                      <span className={styles.runeSetName}>Swift</span>
+                      <span className={styles.runeSetSpeed}>{swData.bestRuneSets.swift > 0 ? `+${swData.bestRuneSets.swift} SPD` : '-'}</span>
+                    </div>
+                    <div className={styles.runeSetItem}>
+                      <span className={styles.runeSetName}>Swift + Will</span>
+                      <span className={styles.runeSetSpeed}>{swData.bestRuneSets.swiftWill > 0 ? `+${swData.bestRuneSets.swiftWill} SPD` : '-'}</span>
+                    </div>
+                    <div className={styles.runeSetItem}>
+                      <span className={styles.runeSetName}>Violent</span>
+                      <span className={styles.runeSetSpeed}>{swData.bestRuneSets.violent > 0 ? `+${swData.bestRuneSets.violent} SPD` : '-'}</span>
+                    </div>
+                    <div className={styles.runeSetItem}>
+                      <span className={styles.runeSetName}>Violent + Will</span>
+                      <span className={styles.runeSetSpeed}>{swData.bestRuneSets.violentWill > 0 ? `+${swData.bestRuneSets.violentWill} SPD` : '-'}</span>
+                    </div>
+                    <div className={styles.runeSetItem}>
+                      <span className={styles.runeSetName}>Despair</span>
+                      <span className={styles.runeSetSpeed}>{swData.bestRuneSets.despair > 0 ? `+${swData.bestRuneSets.despair} SPD` : '-'}</span>
+                    </div>
+                    <div className={styles.runeSetItem}>
+                      <span className={styles.runeSetName}>Despair + Will</span>
+                      <span className={styles.runeSetSpeed}>{swData.bestRuneSets.despairWill > 0 ? `+${swData.bestRuneSets.despairWill} SPD` : '-'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div
+              className={`${styles.uploadZone} ${isDragging ? styles.dragging : ''}`}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+            >
+              <div className={styles.uploadIcon}>📁</div>
+              <p className={styles.uploadText}>
+                Glissez-déposez votre fichier JSON ici
+              </p>
+              <p className={styles.uploadSubtext}>ou</p>
+              <label className={styles.btnPrimary}>
+                Parcourir
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={(e) => handleFileSelect(e.target.files[0])}
+                  style={{ display: 'none' }}
+                  ref={fileInputRef}
+                />
+              </label>
+              <p className={styles.uploadHint}>
+                Fichier d'export Summoners War (HubUserLogin)
+              </p>
+            </div>
+          )}
+
+          {loading && (
+            <div className={styles.uploadLoading}>
+              <div className={styles.spinner}></div>
+              <span>Analyse en cours...</span>
+            </div>
+          )}
         </div>
 
         <div className={styles.welcomeMessage}>

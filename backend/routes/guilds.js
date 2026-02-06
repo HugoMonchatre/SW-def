@@ -571,6 +571,44 @@ router.delete('/:id/join-request', authenticate, async (req, res) => {
   }
 });
 
+// Get guild members rune stats (for rune comparison chart)
+router.get('/:id/rune-stats', authenticate, async (req, res) => {
+  try {
+    const guild = await Guild.findById(req.params.id);
+
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Check if user is a member of this guild
+    const isMember = guild.members.some(m => m.toString() === req.user._id.toString());
+    if (!isMember && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Vous devez être membre de cette guilde' });
+    }
+
+    // Get all members with their swData
+    const members = await User.find(
+      { _id: { $in: guild.members } },
+      { name: 1, username: 1, avatar: 1, swData: 1 }
+    );
+
+    // Format data for chart
+    const runeStats = members
+      .filter(m => m.swData?.bestRuneSets)
+      .map(m => ({
+        id: m._id,
+        name: m.username || m.name,
+        avatar: m.avatar,
+        bestRuneSets: m.swData.bestRuneSets
+      }))
+      .sort((a, b) => (b.bestRuneSets?.swift || 0) - (a.bestRuneSets?.swift || 0));
+
+    res.json({ runeStats });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Leave guild (members can leave, but not the leader)
 router.post('/:id/leave', authenticate, async (req, res) => {
   try {

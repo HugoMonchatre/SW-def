@@ -15,7 +15,13 @@ const createSuperAdmin = async () => {
     const existingAdmin = await User.findOne({ email: adminEmail });
 
     if (existingAdmin) {
-      console.log('ℹ️  Super admin already exists:', adminEmail);
+      // Update existing admin to ensure role is admin
+      existingAdmin.role = 'admin';
+      existingAdmin.password = adminPassword;
+      await existingAdmin.save();
+      console.log('✅ Super admin updated successfully!');
+      console.log('   Email:', existingAdmin.email);
+      console.log('   Role:', existingAdmin.role);
       process.exit(0);
     }
 

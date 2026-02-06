@@ -19,7 +19,7 @@
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
 .userInfo {
@@ -106,6 +106,12 @@
   height: 40px;
   border-radius: 8px;
   object-fit: cover;
+}
+
+.headerActions {
+  display: flex;
+  gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .invitationsSection {
@@ -417,7 +423,291 @@
   transform: none;
 }
 
+/* Collapse Button */
+.btnCollapse {
+  position: fixed;
+  left: 20px;
+  top: 140px;
+  width: 50px;
+  height: 50px;
+  border-radius: 10px;
+  border: 2px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.btnCollapse:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: scale(1.1);
+}
+
+.btnCollapse.collapsed {
+  border-color: var(--primary);
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+}
+
+/* SW Data Section */
+.swDataSection {
+  background: var(--bg-primary);
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+  transform-origin: top left;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              margin 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 2000px;
+  overflow: hidden;
+}
+
+.swDataCollapsed {
+  transform: scale(0) translateX(-50%);
+  opacity: 0;
+  max-height: 0;
+  padding: 0;
+  margin-bottom: 0;
+}
+
+.swDataSection h2 {
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+}
+
+.uploadZone {
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  padding: 3rem 2rem;
+  text-align: center;
+  transition: all 0.3s ease;
+  background: var(--bg-secondary);
+}
+
+.uploadZone.dragging {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.uploadIcon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.uploadText {
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.uploadSubtext {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.uploadHint {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-top: 1rem;
+}
+
+.uploadStatus {
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+.uploadStatus.success {
+  background: rgba(72, 187, 120, 0.1);
+  color: #38a169;
+  border: 1px solid rgba(72, 187, 120, 0.3);
+}
+
+.uploadStatus.error {
+  background: rgba(245, 101, 101, 0.1);
+  color: #e53e3e;
+  border: 1px solid rgba(245, 101, 101, 0.3);
+}
+
+.uploadLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.swDataCard {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.05));
+  border: 2px solid rgba(99, 102, 241, 0.2);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.swDataInfo {
+  flex: 1;
+}
+
+.swDataMain {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.wizardName {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.wizardLevel {
+  padding: 0.25rem 0.75rem;
+  background: var(--primary);
+  color: white;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.swDataStats {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.swStat {
+  display: flex;
+  flex-direction: column;
+}
+
+.swStatValue {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.swStatLabel {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.swDataDate {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.swDataActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.btnDanger {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #e53e3e;
+  border-radius: 8px;
+  background: transparent;
+  color: #e53e3e;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btnDanger:hover {
+  background: rgba(229, 62, 62, 0.1);
+}
+
+/* Best Rune Sets */
+.bestRuneSets {
+  width: 100%;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.bestRuneSets h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.runeSetsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.runeSetItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  transition: all 0.3s ease;
+}
+
+.runeSetItem:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.runeSetName {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+  text-align: center;
+}
+
+.runeSetSpeed {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
 @media (max-width: 768px) {
+  .btnCollapse {
+    top: 100px;
+    left: 10px;
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+  }
+
   .header {
     flex-direction: column;
     align-items: flex-start;
@@ -429,6 +719,15 @@
     gap: 1rem;
   }
 
+  .headerActions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .headerActions button {
+    width: 100%;
+  }
+
   .table {
     font-size: 0.875rem;
   }
@@ -436,5 +735,28 @@
   .table th,
   .table td {
     padding: 0.75rem 0.5rem;
+  }
+
+  .swDataCard {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .swDataActions {
+    width: 100%;
+    flex-direction: row;
+  }
+
+  .runeSetsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .swDataActions .btnPrimary,
+  .swDataActions .btnDanger {
+    flex: 1;
+  }
+
+  .swDataStats {
+    gap: 1rem;
   }
 }
