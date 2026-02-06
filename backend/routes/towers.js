@@ -1,7 +1,5 @@
 import express from 'express';
-import Tower from '../models/Tower.js';
-import Defense from '../models/Defense.js';
-import Guild from '../models/Guild.js';
+import { Guild, User, Defense, Tower, TowerDefense, GuildMember, GuildSubLeader } from '../models/index.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -21,11 +19,38 @@ const isDefenseValid4Star = (defense) => {
 };
 
 // Helper function to check if user can manage tower defenses
-const canManageTower = (guild, userId, userRole) => {
-  const isLeader = guild.leader.toString() === userId.toString();
-  const isSubLeader = guild.subLeaders.some(s => s.toString() === userId.toString());
+const canManageTower = async (guild, userId, userRole) => {
+  const isLeader = guild.leaderId === userId;
+  const isSubLeader = await GuildSubLeader.findOne({ where: { guildId: guild.id, userId } });
   const isAdmin = userRole === 'admin';
-  return isLeader || isSubLeader || isAdmin;
+  return isLeader || !!isSubLeader || isAdmin;
+};
+
+// Helper function to check if user is a member of the guild
+const isGuildMember = async (guild, userId, userRole) => {
+  if (userRole === 'admin') return true;
+  if (guild.leaderId === userId) return true;
+  const isSubLeader = await GuildSubLeader.findOne({ where: { guildId: guild.id, userId } });
+  if (isSubLeader) return true;
+  const isMember = await GuildMember.findOne({ where: { guildId: guild.id, userId } });
+  return !!isMember;
+};
+
+// Helper to build tower include with nested defense and createdBy
+const towerDefenseInclude = [{
+  model: TowerDefense,
+  as: 'towerDefenses',
+  include: [{
+    model: Defense,
+    as: 'defense',
+    include: [{ model: User, as: 'createdBy', attributes: ['id', 'name', 'username', 'avatar'] }]
+  }]
+}];
+
+// Helper to format tower response (extract defenses from junction table)
+const formatTowerDefenses = (tower) => {
+  if (!tower) return [];
+  return tower.towerDefenses.map(td => td.defense);
 };
 
 // Get tower defenses for a specific tower
@@ -33,28 +58,22 @@ router.get('/:guildId/:towerId', authenticate, async (req, res) => {
   try {
     const { guildId, towerId } = req.params;
 
-    const guild = await Guild.findById(guildId);
+    const guild = await Guild.findByPk(guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
     // Check if user is a member of the guild
-    const isMember = guild.members.some(m => m.toString() === req.user._id.toString()) ||
-                     guild.subLeaders.some(s => s.toString() === req.user._id.toString()) ||
-                     guild.leader.toString() === req.user._id.toString();
+    const isMember = await isGuildMember(guild, req.user.id, req.user.role);
 
-    if (!isMember && req.user.role !== 'admin') {
+    if (!isMember) {
       return res.status(403).json({ error: 'You must be a member of this guild to view tower defenses' });
     }
 
-    let tower = await Tower.findOne({ guild: guildId, towerId })
-      .populate({
-        path: 'defenses',
-        populate: {
-          path: 'createdBy',
-          select: 'name username avatar'
-        }
-      });
+    const tower = await Tower.findOne({
+      where: { guildId, towerId },
+      include: towerDefenseInclude
+    });
 
     if (!tower) {
       // Return empty defenses if tower doesn't exist yet
@@ -63,7 +82,7 @@ router.get('/:guildId/:towerId', authenticate, async (req, res) => {
 
     res.json({
       towerId: tower.towerId,
-      defenses: tower.defenses,
+      defenses: formatTowerDefenses(tower),
       memo: tower.memo || ''
     });
   } catch (error) {
@@ -77,21 +96,21 @@ router.post('/:guildId/:towerId/defense', authenticate, async (req, res) => {
     const { guildId, towerId } = req.params;
     const { defenseId } = req.body;
 
-    const guild = await Guild.findById(guildId);
+    const guild = await Guild.findByPk(guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
-    if (!canManageTower(guild, req.user._id, req.user.role)) {
+    if (!(await canManageTower(guild, req.user.id, req.user.role))) {
       return res.status(403).json({ error: 'Only leaders, sub-leaders, and admins can manage tower defenses' });
     }
 
     // Verify the defense exists and belongs to this guild
-    const defense = await Defense.findById(defenseId);
+    const defense = await Defense.findByPk(defenseId);
     if (!defense) {
       return res.status(404).json({ error: 'Defense not found' });
     }
-    if (defense.guild.toString() !== guildId) {
+    if (defense.guildId !== parseInt(guildId)) {
       return res.status(403).json({ error: 'Defense does not belong to this guild' });
     }
 
@@ -101,41 +120,39 @@ router.post('/:guildId/:towerId/defense', authenticate, async (req, res) => {
     }
 
     // Find or create the tower
-    let tower = await Tower.findOne({ guild: guildId, towerId });
+    let tower = await Tower.findOne({ where: { guildId, towerId } });
     if (!tower) {
       tower = await Tower.create({
         towerId,
-        guild: guildId,
-        defenses: []
+        guildId
       });
     }
 
     // Check if defense is already in the tower
-    if (tower.defenses.some(d => d.toString() === defenseId)) {
+    const existingTd = await TowerDefense.findOne({ where: { towerId: tower.id, defenseId } });
+    if (existingTd) {
       return res.status(400).json({ error: 'Defense is already assigned to this tower' });
     }
 
     // Check max defenses per tower
-    if (tower.defenses.length >= MAX_DEFENSES_PER_TOWER) {
+    const currentCount = await TowerDefense.count({ where: { towerId: tower.id } });
+    if (currentCount >= MAX_DEFENSES_PER_TOWER) {
       return res.status(400).json({ error: `Maximum ${MAX_DEFENSES_PER_TOWER} défenses par tour` });
     }
 
-    tower.defenses.push(defenseId);
-    await tower.save();
+    await TowerDefense.create({ towerId: tower.id, defenseId });
 
-    // Populate and return the updated tower
-    const populatedTower = await Tower.findById(tower._id)
-      .populate({
-        path: 'defenses',
-        populate: {
-          path: 'createdBy',
-          select: 'name username avatar'
-        }
-      });
+    // Reload and return the updated tower
+    const populatedTower = await Tower.findByPk(tower.id, {
+      include: towerDefenseInclude
+    });
 
     res.json({
       message: 'Defense added to tower',
-      tower: populatedTower
+      tower: {
+        ...populatedTower.toJSON(),
+        defenses: formatTowerDefenses(populatedTower)
+      }
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -148,21 +165,21 @@ router.post('/:guildId/:towerId/fill', authenticate, async (req, res) => {
     const { guildId, towerId } = req.params;
     const { defenseId } = req.body;
 
-    const guild = await Guild.findById(guildId);
+    const guild = await Guild.findByPk(guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
-    if (!canManageTower(guild, req.user._id, req.user.role)) {
+    if (!(await canManageTower(guild, req.user.id, req.user.role))) {
       return res.status(403).json({ error: 'Only leaders, sub-leaders, and admins can manage tower defenses' });
     }
 
     // Verify the defense exists and belongs to this guild
-    const defense = await Defense.findById(defenseId);
+    const defense = await Defense.findByPk(defenseId);
     if (!defense) {
       return res.status(404).json({ error: 'Defense not found' });
     }
-    if (defense.guild.toString() !== guildId) {
+    if (defense.guildId !== parseInt(guildId)) {
       return res.status(403).json({ error: 'Defense does not belong to this guild' });
     }
 
@@ -172,18 +189,16 @@ router.post('/:guildId/:towerId/fill', authenticate, async (req, res) => {
     }
 
     // Find or create the tower
-    let tower = await Tower.findOne({ guild: guildId, towerId });
+    let tower = await Tower.findOne({ where: { guildId, towerId } });
     if (!tower) {
       tower = await Tower.create({
         towerId,
-        guild: guildId,
-        defenses: []
+        guildId
       });
     }
 
     // Fill with the same defense ID up to MAX_DEFENSES_PER_TOWER
-    // This adds duplicate references to the same defense (no new defense created)
-    const currentCount = tower.defenses.length;
+    const currentCount = await TowerDefense.count({ where: { towerId: tower.id } });
     const slotsToFill = MAX_DEFENSES_PER_TOWER - currentCount;
 
     if (slotsToFill <= 0) {
@@ -191,25 +206,24 @@ router.post('/:guildId/:towerId/fill', authenticate, async (req, res) => {
     }
 
     // Add the defense ID multiple times
+    const rows = [];
     for (let i = 0; i < slotsToFill; i++) {
-      tower.defenses.push(defenseId);
+      rows.push({ towerId: tower.id, defenseId });
     }
-    await tower.save();
+    await TowerDefense.bulkCreate(rows);
 
-    // Populate and return the updated tower
-    const populatedTower = await Tower.findById(tower._id)
-      .populate({
-        path: 'defenses',
-        populate: {
-          path: 'createdBy',
-          select: 'name username avatar'
-        }
-      });
+    // Reload and return the updated tower
+    const populatedTower = await Tower.findByPk(tower.id, {
+      include: towerDefenseInclude
+    });
 
     res.json({
       message: `Tour remplie avec ${slotsToFill} défenses`,
       addedCount: slotsToFill,
-      tower: populatedTower
+      tower: {
+        ...populatedTower.toJSON(),
+        defenses: formatTowerDefenses(populatedTower)
+      }
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -222,26 +236,32 @@ router.delete('/:guildId/:towerId/defense/:index', authenticate, async (req, res
     const { guildId, towerId, index } = req.params;
     const defenseIndex = parseInt(index, 10);
 
-    const guild = await Guild.findById(guildId);
+    const guild = await Guild.findByPk(guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
-    if (!canManageTower(guild, req.user._id, req.user.role)) {
+    if (!(await canManageTower(guild, req.user.id, req.user.role))) {
       return res.status(403).json({ error: 'Only leaders, sub-leaders, and admins can manage tower defenses' });
     }
 
-    const tower = await Tower.findOne({ guild: guildId, towerId });
+    const tower = await Tower.findOne({ where: { guildId, towerId } });
     if (!tower) {
       return res.status(404).json({ error: 'Tower not found' });
     }
 
-    if (defenseIndex < 0 || defenseIndex >= tower.defenses.length) {
+    // Get all TowerDefense rows ordered by id to determine index
+    const towerDefenses = await TowerDefense.findAll({
+      where: { towerId: tower.id },
+      order: [['id', 'ASC']]
+    });
+
+    if (defenseIndex < 0 || defenseIndex >= towerDefenses.length) {
       return res.status(400).json({ error: 'Invalid defense index' });
     }
 
-    tower.defenses.splice(defenseIndex, 1);
-    await tower.save();
+    // Destroy the row at the given index
+    await towerDefenses[defenseIndex].destroy();
 
     res.json({ message: 'Defense removed from tower' });
   } catch (error) {
@@ -255,22 +275,21 @@ router.put('/:guildId/:towerId/memo', authenticate, async (req, res) => {
     const { guildId, towerId } = req.params;
     const { memo } = req.body;
 
-    const guild = await Guild.findById(guildId);
+    const guild = await Guild.findByPk(guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
-    if (!canManageTower(guild, req.user._id, req.user.role)) {
+    if (!(await canManageTower(guild, req.user.id, req.user.role))) {
       return res.status(403).json({ error: 'Only leaders, sub-leaders, and admins can update tower memo' });
     }
 
     // Find or create the tower
-    let tower = await Tower.findOne({ guild: guildId, towerId });
+    let tower = await Tower.findOne({ where: { guildId, towerId } });
     if (!tower) {
       tower = await Tower.create({
         towerId,
-        guild: guildId,
-        defenses: [],
+        guildId,
         memo: memo || ''
       });
     } else {
@@ -289,30 +308,30 @@ router.get('/:guildId', authenticate, async (req, res) => {
   try {
     const { guildId } = req.params;
 
-    const guild = await Guild.findById(guildId);
+    const guild = await Guild.findByPk(guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
     // Check if user is a member of the guild
-    const isMember = guild.members.some(m => m.toString() === req.user._id.toString()) ||
-                     guild.subLeaders.some(s => s.toString() === req.user._id.toString()) ||
-                     guild.leader.toString() === req.user._id.toString();
+    const isMember = await isGuildMember(guild, req.user.id, req.user.role);
 
-    if (!isMember && req.user.role !== 'admin') {
+    if (!isMember) {
       return res.status(403).json({ error: 'You must be a member of this guild to view towers' });
     }
 
-    const towers = await Tower.find({ guild: guildId })
-      .populate({
-        path: 'defenses',
-        populate: {
-          path: 'createdBy',
-          select: 'name username avatar'
-        }
-      });
+    const towers = await Tower.findAll({
+      where: { guildId },
+      include: towerDefenseInclude
+    });
 
-    res.json({ towers });
+    // Format towers to include flat defenses array
+    const formattedTowers = towers.map(tower => ({
+      ...tower.toJSON(),
+      defenses: formatTowerDefenses(tower)
+    }));
+
+    res.json({ towers: formattedTowers });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

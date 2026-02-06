@@ -1,48 +1,55 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const invitationSchema = new mongoose.Schema({
-  guild: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Guild',
-    required: true
+const Invitation = sequelize.define('Invitation', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
   },
-  invitedUser: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  guildId: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
-  invitedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  invitedUserId: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  invitedById: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
   role: {
-    type: String,
-    enum: ['member', 'subLeader'],
-    default: 'member'
+    type: DataTypes.STRING,
+    defaultValue: 'member',
+    validate: { isIn: [['member', 'subLeader']] }
   },
   status: {
-    type: String,
-    enum: ['pending', 'accepted', 'declined'],
-    default: 'pending'
+    type: DataTypes.STRING,
+    defaultValue: 'pending',
+    validate: { isIn: [['pending', 'accepted', 'declined']] }
   },
   message: {
-    type: String,
-    default: ''
+    type: DataTypes.TEXT,
+    defaultValue: ''
   },
   expiresAt: {
-    type: Date,
-    default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+    type: DataTypes.DATE,
+    defaultValue: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  },
+  _id: {
+    type: DataTypes.VIRTUAL,
+    get() { return this.id; }
   }
 }, {
-  timestamps: true
+  tableName: 'invitations',
+  underscored: true
 });
 
-// Index for efficient queries
-invitationSchema.index({ invitedUser: 1, status: 1 });
-invitationSchema.index({ guild: 1, status: 1 });
-invitationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // Auto-delete expired invitations
-
-const Invitation = mongoose.model('Invitation', invitationSchema);
+Invitation.prototype.toJSON = function() {
+  const values = { ...this.get() };
+  values._id = values.id;
+  return values;
+};
 
 export default Invitation;

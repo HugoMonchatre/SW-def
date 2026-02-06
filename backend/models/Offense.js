@@ -1,98 +1,55 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const offenseMonsterSchema = new mongoose.Schema({
-  com2us_id: {
-    type: Number,
-    required: true
+const Offense = sequelize.define('Offense', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
   },
   name: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
-  image: {
-    type: String,
-    required: true
+  guildId: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
-  element: {
-    type: String,
-    required: true
-  },
-  natural_stars: {
-    type: Number,
-    required: true
-  },
-  leader_skill: {
-    id: Number,
-    attribute: String,
-    amount: Number,
-    area: String,
-    element: String
-  },
-  instructions: {
-    type: String,
-    default: ''
-  }
-}, { _id: false });
-
-const offenseSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  defenses: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Defense'
-  }],
-  guild: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Guild',
-    required: true
-  },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  createdById: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
   monsters: {
-    type: [offenseMonsterSchema],
-    validate: {
-      validator: function(v) {
-        return v.length === 3;
-      },
-      message: 'An offense must have exactly 3 monsters'
-    }
+    type: DataTypes.JSON,
+    allowNull: false
   },
   generalInstructions: {
-    type: String,
-    default: ''
+    type: DataTypes.TEXT,
+    defaultValue: ''
   },
-  votes: {
-    up: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 9999
-    },
-    down: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 9999
-    }
+  votesUp: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  votesDown: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  _id: {
+    type: DataTypes.VIRTUAL,
+    get() { return this.id; }
   }
 }, {
-  timestamps: true
+  tableName: 'offenses',
+  underscored: true
 });
 
-// Virtual for vote score
-offenseSchema.virtual('voteScore').get(function() {
-  return (this.votes?.up || 0) - (this.votes?.down || 0);
-});
-
-offenseSchema.set('toJSON', { virtuals: true });
-offenseSchema.set('toObject', { virtuals: true });
-
-const Offense = mongoose.model('Offense', offenseSchema);
+Offense.prototype.toJSON = function() {
+  const values = { ...this.get() };
+  values._id = values.id;
+  values.votes = { up: values.votesUp, down: values.votesDown };
+  values.voteScore = (values.votesUp || 0) - (values.votesDown || 0);
+  return values;
+};
 
 export default Offense;

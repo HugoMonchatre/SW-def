@@ -1,68 +1,45 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const monsterSchema = new mongoose.Schema({
-  com2us_id: {
-    type: Number,
-    required: true
+const Defense = sequelize.define('Defense', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
   },
   name: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
-  image: {
-    type: String,
-    required: true
+  guildId: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
-  element: {
-    type: String,
-    required: true
-  },
-  natural_stars: {
-    type: Number,
-    required: true
-  },
-  leader_skill: {
-    id: Number,
-    attribute: String,
-    amount: Number,
-    area: String,
-    element: String
-  }
-}, { _id: false });
-
-const defenseSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  guild: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Guild',
-    required: true
-  },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  createdById: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
   monsters: {
-    type: [monsterSchema],
-    validate: {
-      validator: function(v) {
-        return v.length === 3;
-      },
-      message: 'A defense must have exactly 3 monsters'
-    }
+    type: DataTypes.JSON,
+    allowNull: false
   },
   position: {
-    type: Number,
-    default: 0
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  _id: {
+    type: DataTypes.VIRTUAL,
+    get() { return this.id; }
   }
 }, {
-  timestamps: true
+  tableName: 'defenses',
+  underscored: true
 });
 
-const Defense = mongoose.model('Defense', defenseSchema);
+Defense.prototype.toJSON = function() {
+  const values = { ...this.get() };
+  values._id = values.id;
+  return values;
+};
 
 export default Defense;

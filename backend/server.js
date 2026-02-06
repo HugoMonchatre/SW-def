@@ -5,7 +5,9 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
-import mongoose from 'mongoose';
+import sequelize from './config/database.js';
+// Import models/index.js to set up all associations
+import './models/index.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import guildRoutes from './routes/guilds.js';
@@ -39,10 +41,16 @@ app.use(session({
   }
 }));
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/sw-def')
-  .then(() => console.log('✅ Connected to MongoDB'))
-  .catch((err) => console.error('❌ MongoDB connection error:', err));
+// Database Connection & Sync
+sequelize.authenticate()
+  .then(() => {
+    console.log('Connected to database');
+    return sequelize.sync();
+  })
+  .then(() => {
+    console.log('Database synced');
+  })
+  .catch((err) => console.error('Database connection error:', err));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -69,5 +77,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });

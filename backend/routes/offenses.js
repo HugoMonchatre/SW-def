@@ -1,48 +1,28 @@
 import express from 'express';
-import Offense from '../models/Offense.js';
-import Defense from '../models/Defense.js';
-import Guild from '../models/Guild.js';
+import { Op } from 'sequelize';
+import { Guild, User, Defense, Offense, Monster, GuildMember, GuildSubLeader, OffenseDefense } from '../models/index.js';
 import { authenticate } from '../middleware/auth.js';
-import axios from 'axios';
 
 const router = express.Router();
 
-const SWARFARM_API = 'https://swarfarm.com/api/v2';
-
-// Search monsters (reuse from defenses)
+// Search monsters from local database
 router.get('/monsters/search', authenticate, async (req, res) => {
   try {
     const { query } = req.query;
-
     if (!query || query.length < 1) {
       return res.json({ results: [] });
     }
 
-    const url = `${SWARFARM_API}/monsters/?name=${encodeURIComponent(query)}&page_size=20`;
-    const response = await axios.get(url);
+    const monsters = await Monster.findAll({
+      where: {
+        name: { [Op.like]: `%${query}%` },
+        obtainable: true
+      },
+      order: [['natural_stars', 'DESC'], ['name', 'ASC']],
+      limit: 20
+    });
 
-    if (response.data.results && response.data.results.length > 0) {
-      const results = response.data.results.map(m => ({
-        name: m.name,
-        image: `https://swarfarm.com/static/herders/images/monsters/${m.image_filename}`,
-        element: m.element,
-        archetype: m.archetype,
-        natural_stars: m.natural_stars,
-        awaken_level: m.awaken_level,
-        leader_skill: m.leader_skill ? {
-          id: m.leader_skill.id,
-          attribute: m.leader_skill.attribute,
-          amount: m.leader_skill.amount,
-          area: m.leader_skill.area,
-          element: m.leader_skill.element
-        } : null,
-        com2us_id: m.com2us_id,
-        image_filename: m.image_filename
-      }));
-      return res.json({ results });
-    }
-
-    res.json({ results: [] });
+    res.json({ results: monsters });
   } catch (error) {
     console.error('Error searching monsters:', error.message);
     res.status(500).json({ error: 'Failed to search monsters' });
@@ -52,10 +32,34 @@ router.get('/monsters/search', authenticate, async (req, res) => {
 // Get all offenses for a defense
 router.get('/defense/:defenseId', authenticate, async (req, res) => {
   try {
-    const offenses = await Offense.find({ defenses: req.params.defenseId })
-      .populate('createdBy', 'name avatar')
-      .populate('defenses', 'name monsters')
-      .sort({ createdAt: -1 });
+    const { defenseId } = req.params;
+
+    // Find offense IDs linked to this defense via the junction table
+    const offenseLinks = await OffenseDefense.findAll({
+      where: { defenseId }
+    });
+    const offenseIds = offenseLinks.map(l => l.offenseId);
+
+    if (offenseIds.length === 0) {
+      return res.json({ offenses: [] });
+    }
+
+    const offenses = await Offense.findAll({
+      where: { id: { [Op.in]: offenseIds } },
+      include: [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'name', 'avatar']
+        },
+        {
+          model: Defense,
+          as: 'defenses',
+          attributes: ['id', 'name', 'monsters']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.json({ offenses });
   } catch (error) {
@@ -69,31 +73,56 @@ router.get('/guild/:guildId', authenticate, async (req, res) => {
     const { guildId } = req.params;
     const { excludeDefenseId } = req.query;
 
-    const guild = await Guild.findById(guildId);
+    const guild = await Guild.findByPk(guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
     // Verify user is in the guild
-    const isLeader = guild.leader.toString() === req.user._id.toString();
-    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
-    const isMember = guild.members.some(id => id.toString() === req.user._id.toString());
+    const isLeader = guild.leaderId === req.user.id;
+
+    const isSubLeader = await GuildSubLeader.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
+
+    const isMember = await GuildMember.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
 
     if (!isLeader && !isSubLeader && !isMember && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Only guild members can view offenses' });
     }
 
-    let query = { guild: guildId };
+    let whereClause = { guildId };
 
     // Optionally exclude offenses already linked to a specific defense
     if (excludeDefenseId) {
-      query.defenses = { $ne: excludeDefenseId };
+      const linkedOffenseLinks = await OffenseDefense.findAll({
+        where: { defenseId: excludeDefenseId }
+      });
+      const excludeOffenseIds = linkedOffenseLinks.map(l => l.offenseId);
+
+      if (excludeOffenseIds.length > 0) {
+        whereClause.id = { [Op.notIn]: excludeOffenseIds };
+      }
     }
 
-    const offenses = await Offense.find(query)
-      .populate('createdBy', 'name avatar')
-      .populate('defenses', 'name monsters')
-      .sort({ createdAt: -1 });
+    const offenses = await Offense.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'name', 'avatar']
+        },
+        {
+          model: Defense,
+          as: 'defenses',
+          attributes: ['id', 'name', 'monsters']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.json({ offenses });
   } catch (error) {
@@ -107,20 +136,26 @@ router.post('/', authenticate, async (req, res) => {
     const { name, defenseId, monsters, generalInstructions } = req.body;
 
     // Verify defense exists
-    const defense = await Defense.findById(defenseId);
+    const defense = await Defense.findByPk(defenseId);
     if (!defense) {
       return res.status(404).json({ error: 'Defense not found' });
     }
 
     // Verify user is in the guild
-    const guild = await Guild.findById(defense.guild);
+    const guild = await Guild.findByPk(defense.guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
-    const isLeader = guild.leader.toString() === req.user._id.toString();
-    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
-    const isMember = guild.members.some(id => id.toString() === req.user._id.toString());
+    const isLeader = guild.leaderId === req.user.id;
+
+    const isSubLeader = await GuildSubLeader.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
+
+    const isMember = await GuildMember.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
 
     if (!isLeader && !isSubLeader && !isMember && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Only guild members can create offenses' });
@@ -131,21 +166,36 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'An offense must have exactly 3 monsters' });
     }
 
-    const offense = new Offense({
+    const offense = await Offense.create({
       name,
-      defenses: [defenseId],
-      guild: defense.guild,
-      createdBy: req.user._id,
+      guildId: defense.guildId,
+      createdById: req.user.id,
       monsters,
       generalInstructions: generalInstructions || '',
-      votes: { up: 0, down: 0 }
+      votesUp: 0,
+      votesDown: 0
     });
 
-    await offense.save();
+    // Link offense to the defense via junction table
+    await OffenseDefense.create({
+      offenseId: offense.id,
+      defenseId
+    });
 
-    const populatedOffense = await Offense.findById(offense._id)
-      .populate('createdBy', 'name avatar')
-      .populate('defenses', 'name monsters');
+    const populatedOffense = await Offense.findByPk(offense.id, {
+      include: [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'name', 'avatar']
+        },
+        {
+          model: Defense,
+          as: 'defenses',
+          attributes: ['id', 'name', 'monsters']
+        }
+      ]
+    });
 
     res.status(201).json({
       message: 'Offense created successfully',
@@ -160,43 +210,65 @@ router.post('/', authenticate, async (req, res) => {
 router.post('/:id/link', authenticate, async (req, res) => {
   try {
     const { defenseId } = req.body;
-    const offense = await Offense.findById(req.params.id);
+    const offense = await Offense.findByPk(req.params.id);
 
     if (!offense) {
       return res.status(404).json({ error: 'Offense not found' });
     }
 
     // Verify defense exists and is in the same guild
-    const defense = await Defense.findById(defenseId);
+    const defense = await Defense.findByPk(defenseId);
     if (!defense) {
       return res.status(404).json({ error: 'Defense not found' });
     }
 
-    if (offense.guild.toString() !== defense.guild.toString()) {
+    if (offense.guildId !== defense.guildId) {
       return res.status(400).json({ error: 'Defense must be in the same guild' });
     }
 
     // Check if already linked
-    if (offense.defenses.some(d => d.toString() === defenseId)) {
+    const existingLink = await OffenseDefense.findOne({
+      where: { offenseId: offense.id, defenseId }
+    });
+    if (existingLink) {
       return res.status(400).json({ error: 'Offense is already linked to this defense' });
     }
 
     // Verify user is in the guild
-    const guild = await Guild.findById(offense.guild);
-    const isLeader = guild.leader.toString() === req.user._id.toString();
-    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
-    const isMember = guild.members.some(id => id.toString() === req.user._id.toString());
+    const guild = await Guild.findByPk(offense.guildId);
+    const isLeader = guild.leaderId === req.user.id;
+
+    const isSubLeader = await GuildSubLeader.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
+
+    const isMember = await GuildMember.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
 
     if (!isLeader && !isSubLeader && !isMember && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Only guild members can link offenses' });
     }
 
-    offense.defenses.push(defenseId);
-    await offense.save();
+    await OffenseDefense.create({
+      offenseId: offense.id,
+      defenseId
+    });
 
-    const populatedOffense = await Offense.findById(offense._id)
-      .populate('createdBy', 'name avatar')
-      .populate('defenses', 'name monsters');
+    const populatedOffense = await Offense.findByPk(offense.id, {
+      include: [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'name', 'avatar']
+        },
+        {
+          model: Defense,
+          as: 'defenses',
+          attributes: ['id', 'name', 'monsters']
+        }
+      ]
+    });
 
     res.json({
       message: 'Offense linked successfully',
@@ -211,34 +283,54 @@ router.post('/:id/link', authenticate, async (req, res) => {
 router.post('/:id/unlink', authenticate, async (req, res) => {
   try {
     const { defenseId } = req.body;
-    const offense = await Offense.findById(req.params.id);
+    const offense = await Offense.findByPk(req.params.id);
 
     if (!offense) {
       return res.status(404).json({ error: 'Offense not found' });
     }
 
     // Check permission
-    const guild = await Guild.findById(offense.guild);
-    const isCreator = offense.createdBy.toString() === req.user._id.toString();
-    const isLeader = guild?.leader.toString() === req.user._id.toString();
-    const isSubLeader = guild?.subLeaders.some(id => id.toString() === req.user._id.toString());
+    const guild = await Guild.findByPk(offense.guildId);
+    const isCreator = offense.createdById === req.user.id;
+    const isLeader = guild?.leaderId === req.user.id;
+
+    const isSubLeader = guild ? await GuildSubLeader.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    }) : null;
 
     if (!isCreator && !isLeader && !isSubLeader && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Not authorized to unlink this offense' });
     }
 
-    // Remove the defense from the array
-    offense.defenses = offense.defenses.filter(d => d.toString() !== defenseId);
-    await offense.save();
+    // Remove the link from the junction table
+    await OffenseDefense.destroy({
+      where: { offenseId: offense.id, defenseId }
+    });
 
-    const populatedOffense = await Offense.findById(offense._id)
-      .populate('createdBy', 'name avatar')
-      .populate('defenses', 'name monsters');
+    // Check remaining links
+    const remaining = await OffenseDefense.count({
+      where: { offenseId: offense.id }
+    });
+
+    const populatedOffense = await Offense.findByPk(offense.id, {
+      include: [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'name', 'avatar']
+        },
+        {
+          model: Defense,
+          as: 'defenses',
+          attributes: ['id', 'name', 'monsters']
+        }
+      ]
+    });
 
     res.json({
       message: 'Offense unlinked successfully',
       offense: populatedOffense,
-      deleted: offense.defenses.length === 0
+      deleted: remaining === 0
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -249,17 +341,20 @@ router.post('/:id/unlink', authenticate, async (req, res) => {
 router.patch('/:id', authenticate, async (req, res) => {
   try {
     const { name, monsters, generalInstructions } = req.body;
-    const offense = await Offense.findById(req.params.id);
+    const offense = await Offense.findByPk(req.params.id);
 
     if (!offense) {
       return res.status(404).json({ error: 'Offense not found' });
     }
 
     // Check permission
-    const guild = await Guild.findById(offense.guild);
-    const isCreator = offense.createdBy.toString() === req.user._id.toString();
-    const isLeader = guild?.leader.toString() === req.user._id.toString();
-    const isSubLeader = guild?.subLeaders.some(id => id.toString() === req.user._id.toString());
+    const guild = await Guild.findByPk(offense.guildId);
+    const isCreator = offense.createdById === req.user.id;
+    const isLeader = guild?.leaderId === req.user.id;
+
+    const isSubLeader = guild ? await GuildSubLeader.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    }) : null;
 
     if (!isCreator && !isLeader && !isSubLeader && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Not authorized to update this offense' });
@@ -271,9 +366,20 @@ router.patch('/:id', authenticate, async (req, res) => {
 
     await offense.save();
 
-    const populatedOffense = await Offense.findById(offense._id)
-      .populate('createdBy', 'name avatar')
-      .populate('defenses', 'name monsters');
+    const populatedOffense = await Offense.findByPk(offense.id, {
+      include: [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'name', 'avatar']
+        },
+        {
+          model: Defense,
+          as: 'defenses',
+          attributes: ['id', 'name', 'monsters']
+        }
+      ]
+    });
 
     res.json({
       message: 'Offense updated successfully',
@@ -287,23 +393,26 @@ router.patch('/:id', authenticate, async (req, res) => {
 // Delete an offense
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const offense = await Offense.findById(req.params.id);
+    const offense = await Offense.findByPk(req.params.id);
 
     if (!offense) {
       return res.status(404).json({ error: 'Offense not found' });
     }
 
     // Check permission
-    const guild = await Guild.findById(offense.guild);
-    const isCreator = offense.createdBy.toString() === req.user._id.toString();
-    const isLeader = guild?.leader.toString() === req.user._id.toString();
-    const isSubLeader = guild?.subLeaders.some(id => id.toString() === req.user._id.toString());
+    const guild = await Guild.findByPk(offense.guildId);
+    const isCreator = offense.createdById === req.user.id;
+    const isLeader = guild?.leaderId === req.user.id;
+
+    const isSubLeader = guild ? await GuildSubLeader.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    }) : null;
 
     if (!isCreator && !isLeader && !isSubLeader && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Not authorized to delete this offense' });
     }
 
-    await offense.deleteOne();
+    await offense.destroy();
 
     res.json({ message: 'Offense deleted successfully' });
   } catch (error) {
@@ -315,25 +424,25 @@ router.delete('/:id', authenticate, async (req, res) => {
 router.post('/:id/vote', authenticate, async (req, res) => {
   try {
     const { voteType } = req.body; // 'up', 'down', 'decrement_up', 'decrement_down'
-    const offense = await Offense.findById(req.params.id);
+    const offense = await Offense.findByPk(req.params.id);
 
     if (!offense) {
       return res.status(404).json({ error: 'Offense not found' });
     }
 
-    // Initialize votes if they don't exist
-    if (typeof offense.votes.up !== 'number') offense.votes.up = 0;
-    if (typeof offense.votes.down !== 'number') offense.votes.down = 0;
+    // Initialize votes if they are null
+    if (typeof offense.votesUp !== 'number') offense.votesUp = 0;
+    if (typeof offense.votesDown !== 'number') offense.votesDown = 0;
 
     // Handle the vote action
     if (voteType === 'up') {
-      offense.votes.up += 1;
+      offense.votesUp += 1;
     } else if (voteType === 'down') {
-      offense.votes.down += 1;
+      offense.votesDown += 1;
     } else if (voteType === 'decrement_up') {
-      offense.votes.up = Math.max(0, offense.votes.up - 1);
+      offense.votesUp = Math.max(0, offense.votesUp - 1);
     } else if (voteType === 'decrement_down') {
-      offense.votes.down = Math.max(0, offense.votes.down - 1);
+      offense.votesDown = Math.max(0, offense.votesDown - 1);
     }
 
     await offense.save();
@@ -341,9 +450,9 @@ router.post('/:id/vote', authenticate, async (req, res) => {
     res.json({
       message: 'Vote recorded',
       votes: {
-        up: offense.votes.up,
-        down: offense.votes.down,
-        score: offense.votes.up - offense.votes.down
+        up: offense.votesUp,
+        down: offense.votesDown,
+        score: offense.votesUp - offense.votesDown
       }
     });
   } catch (error) {

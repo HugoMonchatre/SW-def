@@ -1,4 +1,5 @@
 import express from 'express';
+import { Op } from 'sequelize';
 import User from '../models/User.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
@@ -7,7 +8,7 @@ const router = express.Router();
 // Get all users (admin only)
 router.get('/', authenticate, authorize('admin'), async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
+    const users = await User.findAll({ order: [['createdAt', 'DESC']] });
     res.json({ users });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -18,7 +19,10 @@ router.get('/', authenticate, authorize('admin'), async (req, res) => {
 router.get('/available-for-guild', authenticate, authorize('guild_leader', 'admin'), async (req, res) => {
   try {
     // Get users who are not in any guild
-    const users = await User.find({ guild: null, isActive: true }).sort({ name: 1 });
+    const users = await User.findAll({
+      where: { guildId: null, isActive: true },
+      order: [['name', 'ASC']]
+    });
     res.json({ users });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -28,14 +32,14 @@ router.get('/available-for-guild', authenticate, authorize('guild_leader', 'admi
 // Get user by ID
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     // Only admin or the user themselves can view
-    if (req.user.role !== 'admin' && req.user._id.toString() !== user._id.toString()) {
+    if (req.user.role !== 'admin' && req.user.id !== user.id) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
@@ -54,14 +58,14 @@ router.patch('/:id/role', authenticate, authorize('admin'), async (req, res) => 
       return res.status(400).json({ error: 'Invalid role' });
     }
 
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     // Prevent changing own role
-    if (req.user._id.toString() === user._id.toString()) {
+    if (req.user.id === user.id) {
       return res.status(403).json({ error: 'Cannot change your own role' });
     }
 
@@ -82,14 +86,14 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
   try {
     const { isActive } = req.body;
 
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     // Prevent deactivating own account
-    if (req.user._id.toString() === user._id.toString()) {
+    if (req.user.id === user.id) {
       return res.status(403).json({ error: 'Cannot deactivate your own account' });
     }
 
@@ -109,7 +113,7 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
 router.patch('/me/profile', authenticate, async (req, res) => {
   try {
     const { username, avatar } = req.body;
-    const user = await User.findById(req.user._id);
+    const user = await User.findByPk(req.user.id);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -119,7 +123,9 @@ router.patch('/me/profile', authenticate, async (req, res) => {
     if (username !== undefined) {
       // Check if username is already taken by another user
       if (username !== user.username) {
-        const existingUser = await User.findOne({ username, _id: { $ne: user._id } });
+        const existingUser = await User.findOne({
+          where: { username, id: { [Op.ne]: user.id } }
+        });
         if (existingUser) {
           return res.status(400).json({ error: 'Username already taken' });
         }
@@ -137,7 +143,7 @@ router.patch('/me/profile', authenticate, async (req, res) => {
     res.json({
       message: 'Profile updated successfully',
       user: {
-        _id: user._id,
+        id: user.id,
         name: user.name,
         username: user.username,
         email: user.email,
@@ -160,7 +166,7 @@ router.patch('/me/password', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Current password and new password are required' });
     }
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findByPk(req.user.id);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -317,7 +323,7 @@ router.post('/me/sw-data', authenticate, async (req, res) => {
     }
 
     // Extract essential data only
-    const user = await User.findById(req.user._id);
+    const user = await User.findByPk(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -376,7 +382,7 @@ router.post('/me/sw-data', authenticate, async (req, res) => {
 // Get my SW data
 router.get('/me/sw-data', authenticate, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findByPk(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -390,12 +396,12 @@ router.get('/me/sw-data', authenticate, async (req, res) => {
 // Delete my SW data
 router.delete('/me/sw-data', authenticate, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findByPk(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    user.swData = undefined;
+    user.swData = null;
     await user.save();
 
     res.json({ message: 'SW data deleted successfully' });
@@ -407,18 +413,18 @@ router.delete('/me/sw-data', authenticate, async (req, res) => {
 // Delete user (admin only)
 router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     // Prevent deleting own account
-    if (req.user._id.toString() === user._id.toString()) {
+    if (req.user.id === user.id) {
       return res.status(403).json({ error: 'Cannot delete your own account' });
     }
 
-    await user.deleteOne();
+    await user.destroy();
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {

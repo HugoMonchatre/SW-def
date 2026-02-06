@@ -1,43 +1,46 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const playerInventorySchema = new mongoose.Schema({
-  playerName: {
-    type: String,
-    required: true
+const GuildInventory = sequelize.define('GuildInventory', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
   },
-  visibleName: {
-    type: String,
-    required: true
-  },
-  monsters: [{
-    type: String,
-    required: true
-  }]
-}, { _id: false });
-
-const guildInventorySchema = new mongoose.Schema({
-  guild: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Guild',
-    required: true,
+  guildId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
     unique: true
   },
-  players: [playerInventorySchema],
-  uploadedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  players: {
+    type: DataTypes.JSON,
+    defaultValue: []
+  },
+  uploadedById: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
   fileName: {
-    type: String
+    type: DataTypes.STRING,
+    allowNull: true
   },
-  monsterColumns: [{
-    type: String
-  }]
+  monsterColumns: {
+    type: DataTypes.JSON,
+    defaultValue: []
+  },
+  _id: {
+    type: DataTypes.VIRTUAL,
+    get() { return this.id; }
+  }
 }, {
-  timestamps: true
+  tableName: 'guild_inventories',
+  underscored: true
 });
 
-guildInventorySchema.index({ 'players.playerName': 1 });
+GuildInventory.prototype.toJSON = function() {
+  const values = { ...this.get() };
+  values._id = values.id;
+  return values;
+};
 
-export default mongoose.model('GuildInventory', guildInventorySchema);
+export default GuildInventory;

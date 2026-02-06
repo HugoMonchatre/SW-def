@@ -1,105 +1,96 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
 import bcrypt from 'bcryptjs';
+import sequelize from '../config/database.js';
 
-const userSchema = new mongoose.Schema({
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   name: {
-    type: String,
-    required: true,
-    trim: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   email: {
-    type: String,
-    required: true,
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true,
-    lowercase: true,
-    trim: true
+    set(value) {
+      this.setDataValue('email', value.toLowerCase().trim());
+    }
   },
   password: {
-    type: String,
-    required: function() {
-      return this.provider === 'email';
-    }
+    type: DataTypes.STRING,
+    allowNull: true
   },
   provider: {
-    type: String,
-    enum: ['email', 'discord', 'google'],
-    default: 'email'
+    type: DataTypes.STRING,
+    defaultValue: 'email',
+    validate: { isIn: [['email', 'discord', 'google']] }
   },
   providerId: {
-    type: String,
-    sparse: true
+    type: DataTypes.STRING,
+    allowNull: true
   },
   role: {
-    type: String,
-    enum: ['user', 'guild_leader', 'admin'],
-    default: 'user'
+    type: DataTypes.STRING,
+    defaultValue: 'user',
+    validate: { isIn: [['user', 'guild_leader', 'admin']] }
   },
   avatar: {
-    type: String,
-    default: null
+    type: DataTypes.STRING,
+    allowNull: true
   },
-  guild: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Guild',
-    default: null
+  guildId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   },
   isActive: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
   username: {
-    type: String,
-    sparse: true,
-    trim: true
+    type: DataTypes.STRING,
+    allowNull: true
   },
   swData: {
-    wizardId: Number,
-    wizardName: String,
-    wizardLevel: Number,
-    lastUpload: Date,
-    unitCount: Number,
-    runeCount: Number,
-    bestRuneSets: {
-      swift: Number,
-      swiftWill: Number,
-      violent: Number,
-      violentWill: Number,
-      despair: Number,
-      despairWill: Number
-    }
+    type: DataTypes.JSON,
+    allowNull: true
+  },
+  _id: {
+    type: DataTypes.VIRTUAL,
+    get() { return this.id; }
   }
 }, {
-  timestamps: true
+  tableName: 'users',
+  underscored: true,
+  hooks: {
+    beforeCreate: async (user) => {
+      if (user.password) {
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(user.password, salt);
+      }
+    },
+    beforeUpdate: async (user) => {
+      if (user.changed('password') && user.password) {
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(user.password, salt);
+      }
+    }
+  }
 });
 
-// Hash password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password') || !this.password) {
-    return next();
-  }
-
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Compare password method
-userSchema.methods.comparePassword = async function(candidatePassword) {
+User.prototype.comparePassword = async function(candidatePassword) {
   if (!this.password) return false;
-  return await bcrypt.compare(candidatePassword, this.password);
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Remove password from JSON response
-userSchema.methods.toJSON = function() {
-  const obj = this.toObject();
-  delete obj.password;
-  return obj;
+User.prototype.toJSON = function() {
+  const values = { ...this.get() };
+  delete values.password;
+  values._id = values.id;
+  return values;
 };
-
-const User = mongoose.model('User', userSchema);
 
 export default User;

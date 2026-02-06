@@ -31,8 +31,11 @@ yarn-error.log*
 # Production
 /frontend/dist
 
-# Local MongoDB data
-data/
+# SQLite local database
+*.sqlite
+
+# Misc data files
+backend/vincnet35-*.json
 
 # Coverage
 coverage/

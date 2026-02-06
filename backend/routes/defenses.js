@@ -1,14 +1,12 @@
 import express from 'express';
-import axios from 'axios';
-import Defense from '../models/Defense.js';
-import Offense from '../models/Offense.js';
-import Guild from '../models/Guild.js';
+import { Op } from 'sequelize';
+import sequelize from '../config/database.js';
+import { Guild, User, Defense, Monster, GuildMember, GuildSubLeader, OffenseDefense } from '../models/index.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
-const SWARFARM_API = 'https://swarfarm.com/api/v2';
 
-// Proxy for SWARFARM monster search (to avoid CORS issues)
+// Search monsters from local database
 router.get('/monsters/search', authenticate, async (req, res) => {
   try {
     const { query } = req.query;
@@ -16,92 +14,96 @@ router.get('/monsters/search', authenticate, async (req, res) => {
       return res.json({ results: [] });
     }
 
-    const url = `${SWARFARM_API}/monsters/?name=${encodeURIComponent(query)}&page_size=20`;
-    const response = await axios.get(url);
+    const monsters = await Monster.findAll({
+      where: {
+        name: { [Op.like]: `%${query}%` },
+        obtainable: true
+      },
+      order: [['natural_stars', 'DESC'], ['name', 'ASC']],
+      limit: 20
+    });
 
-    if (response.data.results && response.data.results.length > 0) {
-      // leader_skill is already an object in the API response, no need to fetch separately
-      const results = response.data.results.map(m => ({
-        name: m.name,
-        image: `https://swarfarm.com/static/herders/images/monsters/${m.image_filename}`,
-        element: m.element,
-        archetype: m.archetype,
-        natural_stars: m.natural_stars,
-        awaken_level: m.awaken_level,
-        leader_skill: m.leader_skill ? {
-          id: m.leader_skill.id,
-          attribute: m.leader_skill.attribute,
-          amount: m.leader_skill.amount,
-          area: m.leader_skill.area,
-          element: m.leader_skill.element
-        } : null,
-        com2us_id: m.com2us_id,
-        image_filename: m.image_filename
-      }));
-      return res.json({ results });
-    }
-
-    res.json({ results: [] });
+    res.json({ results: monsters });
   } catch (error) {
     console.error('Error searching monsters:', error.message);
     res.status(500).json({ error: 'Failed to search monsters' });
   }
 });
 
-// Proxy for SWARFARM leader skill fetch
+// Get leader skill by monster com2us_id
 router.get('/leader-skills/:id', authenticate, async (req, res) => {
   try {
-    const response = await axios.get(`${SWARFARM_API}/leader-skills/${req.params.id}/`);
-    res.json(response.data);
+    const monster = await Monster.findOne({ where: { com2us_id: req.params.id } });
+    if (!monster || !monster.leader_skill) {
+      return res.json({});
+    }
+    res.json(monster.leader_skill);
   } catch (error) {
     console.error('Error fetching leader skill:', error.message);
     res.status(500).json({ error: 'Failed to fetch leader skill' });
   }
 });
 
-// Get all defenses for user's guild
+// Get all defenses for a guild
 router.get('/guild/:guildId', authenticate, async (req, res) => {
   try {
     const { guildId } = req.params;
 
-    const guild = await Guild.findById(guildId);
+    const guild = await Guild.findByPk(guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
     // Check if user is a member of the guild
-    const isMember = guild.members.some(m => m.toString() === req.user._id.toString()) ||
-                     guild.subLeaders.some(s => s.toString() === req.user._id.toString()) ||
-                     guild.leader.toString() === req.user._id.toString();
+    const isLeader = guild.leaderId === req.user.id;
 
-    if (!isMember && req.user.role !== 'admin') {
+    const isSubLeader = await GuildSubLeader.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
+
+    const isMember = await GuildMember.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
+
+    if (!isLeader && !isSubLeader && !isMember && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'You must be a member of this guild to view defenses' });
     }
 
-    const defenses = await Defense.find({ guild: guildId })
-      .populate('createdBy', 'name username avatar')
-      .sort({ position: 1, createdAt: -1 });
-
-    // Get offense counts for each defense
-    const defenseIds = defenses.map(d => d._id);
-    const offenseCounts = await Offense.aggregate([
-      { $match: { defenses: { $in: defenseIds } } },
-      { $unwind: '$defenses' },
-      { $match: { defenses: { $in: defenseIds } } },
-      { $group: { _id: '$defenses', count: { $sum: 1 } } }
-    ]);
-
-    // Create a map of defense ID to offense count
-    const countMap = {};
-    offenseCounts.forEach(item => {
-      countMap[item._id.toString()] = item.count;
+    const defenses = await Defense.findAll({
+      where: { guildId },
+      include: [{
+        model: User,
+        as: 'createdBy',
+        attributes: ['id', 'name', 'username', 'avatar']
+      }],
+      order: [['position', 'ASC'], ['createdAt', 'DESC']]
     });
 
+    // Get offense counts for each defense
+    const defenseIds = defenses.map(d => d.id);
+
+    let countMap = {};
+    if (defenseIds.length > 0) {
+      const offenseCounts = await OffenseDefense.findAll({
+        where: { defenseId: { [Op.in]: defenseIds } },
+        attributes: [
+          'defenseId',
+          [sequelize.fn('COUNT', sequelize.col('offense_id')), 'count']
+        ],
+        group: ['defenseId']
+      });
+
+      offenseCounts.forEach(item => {
+        countMap[item.defenseId] = parseInt(item.getDataValue('count'), 10);
+      });
+    }
+
     // Add offense count to each defense
-    const defensesWithCounts = defenses.map(defense => ({
-      ...defense.toObject(),
-      offenseCount: countMap[defense._id.toString()] || 0
-    }));
+    const defensesWithCounts = defenses.map(defense => {
+      const defenseJson = defense.toJSON();
+      defenseJson.offenseCount = countMap[defense.id] || 0;
+      return defenseJson;
+    });
 
     res.json({ defenses: defensesWithCounts });
   } catch (error) {
@@ -114,17 +116,23 @@ router.post('/', authenticate, async (req, res) => {
   try {
     const { name, guildId, monsters } = req.body;
 
-    const guild = await Guild.findById(guildId);
+    const guild = await Guild.findByPk(guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
     // Check if user is a member of the guild
-    const isMember = guild.members.some(m => m.toString() === req.user._id.toString()) ||
-                     guild.subLeaders.some(s => s.toString() === req.user._id.toString()) ||
-                     guild.leader.toString() === req.user._id.toString();
+    const isLeader = guild.leaderId === req.user.id;
 
-    if (!isMember && req.user.role !== 'admin') {
+    const isSubLeader = await GuildSubLeader.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
+
+    const isMember = await GuildMember.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
+
+    if (!isLeader && !isSubLeader && !isMember && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'You must be a member of this guild to create a defense' });
     }
 
@@ -134,13 +142,18 @@ router.post('/', authenticate, async (req, res) => {
 
     const defense = await Defense.create({
       name,
-      guild: guildId,
-      createdBy: req.user._id,
+      guildId,
+      createdById: req.user.id,
       monsters
     });
 
-    const populatedDefense = await Defense.findById(defense._id)
-      .populate('createdBy', 'name username avatar');
+    const populatedDefense = await Defense.findByPk(defense.id, {
+      include: [{
+        model: User,
+        as: 'createdBy',
+        attributes: ['id', 'name', 'username', 'avatar']
+      }]
+    });
 
     res.status(201).json({
       message: 'Defense created successfully',
@@ -155,17 +168,20 @@ router.post('/', authenticate, async (req, res) => {
 router.patch('/:id', authenticate, async (req, res) => {
   try {
     const { name, monsters, position } = req.body;
-    const defense = await Defense.findById(req.params.id);
+    const defense = await Defense.findByPk(req.params.id);
 
     if (!defense) {
       return res.status(404).json({ error: 'Defense not found' });
     }
 
     // Check if user is the creator, guild leader, sub-leader, or admin
-    const guild = await Guild.findById(defense.guild);
-    const isCreator = defense.createdBy.toString() === req.user._id.toString();
-    const isLeader = guild.leader.toString() === req.user._id.toString();
-    const isSubLeader = guild.subLeaders.some(s => s.toString() === req.user._id.toString());
+    const guild = await Guild.findByPk(defense.guildId);
+    const isCreator = defense.createdById === req.user.id;
+    const isLeader = guild.leaderId === req.user.id;
+
+    const isSubLeader = await GuildSubLeader.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
 
     if (!isCreator && !isLeader && !isSubLeader && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'You do not have permission to update this defense' });
@@ -182,8 +198,13 @@ router.patch('/:id', authenticate, async (req, res) => {
 
     await defense.save();
 
-    const populatedDefense = await Defense.findById(defense._id)
-      .populate('createdBy', 'name username avatar');
+    const populatedDefense = await Defense.findByPk(defense.id, {
+      include: [{
+        model: User,
+        as: 'createdBy',
+        attributes: ['id', 'name', 'username', 'avatar']
+      }]
+    });
 
     res.json({
       message: 'Defense updated successfully',
@@ -197,22 +218,22 @@ router.patch('/:id', authenticate, async (req, res) => {
 // Delete a defense
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const defense = await Defense.findById(req.params.id);
+    const defense = await Defense.findByPk(req.params.id);
 
     if (!defense) {
       return res.status(404).json({ error: 'Defense not found' });
     }
 
     // Check if user is the creator, guild leader, or admin
-    const guild = await Guild.findById(defense.guild);
-    const isCreator = defense.createdBy.toString() === req.user._id.toString();
-    const isLeader = guild.leader.toString() === req.user._id.toString();
+    const guild = await Guild.findByPk(defense.guildId);
+    const isCreator = defense.createdById === req.user.id;
+    const isLeader = guild.leaderId === req.user.id;
 
     if (!isCreator && !isLeader && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'You do not have permission to delete this defense' });
     }
 
-    await defense.deleteOne();
+    await defense.destroy();
 
     res.json({ message: 'Defense deleted successfully' });
   } catch (error) {

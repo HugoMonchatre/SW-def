@@ -3,12 +3,10 @@ import { Strategy as DiscordStrategy } from 'passport-discord';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import User from '../models/User.js';
 
-// Debug: Check if env vars are loaded
-console.log('🔍 Checking Discord credentials...');
-console.log('   DISCORD_CLIENT_ID:', process.env.DISCORD_CLIENT_ID ? '✅ SET' : '❌ NOT SET');
-console.log('   DISCORD_CLIENT_SECRET:', process.env.DISCORD_CLIENT_SECRET ? '✅ SET' : '❌ NOT SET');
+console.log('   DISCORD_CLIENT_ID:', process.env.DISCORD_CLIENT_ID ? 'SET' : 'NOT SET');
+console.log('   DISCORD_CLIENT_SECRET:', process.env.DISCORD_CLIENT_SECRET ? 'SET' : 'NOT SET');
 
-// Discord Strategy - Only configure if credentials are provided
+// Discord Strategy
 if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
   passport.use(new DiscordStrategy({
     clientID: process.env.DISCORD_CLIENT_ID,
@@ -17,7 +15,7 @@ if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
     scope: ['identify', 'email']
   }, async (accessToken, refreshToken, profile, done) => {
     try {
-      let user = await User.findOne({ providerId: profile.id, provider: 'discord' });
+      let user = await User.findOne({ where: { providerId: profile.id, provider: 'discord' } });
 
       if (!user) {
         user = await User.create({
@@ -35,12 +33,12 @@ if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
       return done(error, null);
     }
   }));
-  console.log('✅ Discord OAuth configured');
+  console.log('Discord OAuth configured');
 } else {
-  console.log('⚠️  Discord OAuth not configured (credentials missing)');
+  console.log('Discord OAuth not configured (credentials missing)');
 }
 
-// Google Strategy - Only configure if credentials are provided
+// Google Strategy
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
@@ -48,7 +46,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     callbackURL: process.env.GOOGLE_CALLBACK_URL
   }, async (accessToken, refreshToken, profile, done) => {
     try {
-      let user = await User.findOne({ providerId: profile.id, provider: 'google' });
+      let user = await User.findOne({ where: { providerId: profile.id, provider: 'google' } });
 
       if (!user) {
         user = await User.create({
@@ -66,9 +64,9 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       return done(error, null);
     }
   }));
-  console.log('✅ Google OAuth configured');
+  console.log('Google OAuth configured');
 } else {
-  console.log('⚠️  Google OAuth not configured (credentials missing)');
+  console.log('Google OAuth not configured (credentials missing)');
 }
 
 passport.serializeUser((user, done) => {
@@ -77,7 +75,7 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = await User.findById(id);
+    const user = await User.findByPk(id);
     done(null, user);
   } catch (error) {
     done(error, null);

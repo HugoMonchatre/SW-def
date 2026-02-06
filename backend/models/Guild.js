@@ -1,66 +1,50 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const guildSchema = new mongoose.Schema({
+const Guild = sequelize.define('Guild', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   name: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
   },
   description: {
-    type: String,
-    default: ''
+    type: DataTypes.TEXT,
+    defaultValue: ''
   },
   logo: {
-    type: String,
-    default: null
+    type: DataTypes.STRING,
+    allowNull: true
   },
-  leader: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  leaderId: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
-  subLeaders: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  members: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  joinRequests: [{
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    message: {
-      type: String,
-      default: ''
-    },
-    requestedAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
   maxMembers: {
-    type: Number,
-    default: 30
+    type: DataTypes.INTEGER,
+    defaultValue: 30
   },
   isActive: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  _id: {
+    type: DataTypes.VIRTUAL,
+    get() { return this.id; }
   }
 }, {
-  timestamps: true
+  tableName: 'guilds',
+  underscored: true
 });
 
-// Remove sensitive data from JSON response
-guildSchema.methods.toJSON = function() {
-  const obj = this.toObject();
-  return obj;
+Guild.prototype.toJSON = function() {
+  const values = { ...this.get() };
+  values._id = values.id;
+  return values;
 };
-
-const Guild = mongoose.model('Guild', guildSchema);
 
 export default Guild;

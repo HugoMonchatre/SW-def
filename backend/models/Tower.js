@@ -1,30 +1,40 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const towerSchema = new mongoose.Schema({
+const Tower = sequelize.define('Tower', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   towerId: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
-  guild: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Guild',
-    required: true
+  guildId: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
-  defenses: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Defense'
-  }],
   memo: {
-    type: String,
-    default: ''
+    type: DataTypes.TEXT,
+    defaultValue: ''
+  },
+  _id: {
+    type: DataTypes.VIRTUAL,
+    get() { return this.id; }
   }
 }, {
-  timestamps: true
+  tableName: 'towers',
+  underscored: true,
+  indexes: [
+    { unique: true, fields: ['tower_id', 'guild_id'] }
+  ]
 });
 
-// Compound index to ensure unique tower per guild
-towerSchema.index({ towerId: 1, guild: 1 }, { unique: true });
-
-const Tower = mongoose.model('Tower', towerSchema);
+Tower.prototype.toJSON = function() {
+  const values = { ...this.get() };
+  values._id = values.id;
+  return values;
+};
 
 export default Tower;

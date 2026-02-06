@@ -1,7 +1,7 @@
 import express from 'express';
+import { Op } from 'sequelize';
+import { Guild, User, GuildMember, GuildSubLeader } from '../models/index.js';
 import Invitation from '../models/Invitation.js';
-import Guild from '../models/Guild.js';
-import User from '../models/User.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -9,14 +9,18 @@ const router = express.Router();
 // Get all invitations for the current user
 router.get('/my-invitations', authenticate, async (req, res) => {
   try {
-    const invitations = await Invitation.find({
-      invitedUser: req.user._id,
-      status: 'pending',
-      expiresAt: { $gt: new Date() }
-    })
-      .populate('guild', 'name description logo')
-      .populate('invitedBy', 'name username email')
-      .sort({ createdAt: -1 });
+    const invitations = await Invitation.findAll({
+      where: {
+        invitedUserId: req.user.id,
+        status: 'pending',
+        expiresAt: { [Op.gt]: new Date() }
+      },
+      include: [
+        { model: Guild, as: 'guild', attributes: ['id', 'name', 'description', 'logo'] },
+        { model: User, as: 'invitedBy', attributes: ['id', 'name', 'username', 'email'] }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.json(invitations);
   } catch (error) {
@@ -36,40 +40,42 @@ router.post('/send', authenticate, async (req, res) => {
     }
 
     // Check if guild exists
-    const guild = await Guild.findById(guildId);
+    const guild = await Guild.findByPk(guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
     // Check if user has permission to invite (must be leader or subLeader)
-    const isLeader = guild.leader.toString() === req.user._id.toString();
-    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
+    const isLeader = guild.leaderId === req.user.id;
+    const isSubLeader = await GuildSubLeader.findOne({ where: { guildId, userId: req.user.id } });
 
     if (!isLeader && !isSubLeader) {
       return res.status(403).json({ error: 'Only leaders and sub-leaders can send invitations' });
     }
 
     // Check if user exists
-    const invitedUser = await User.findById(userId);
+    const invitedUser = await User.findByPk(userId);
     if (!invitedUser) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     // Check if user is already a member
-    const isAlreadyMember = guild.members.some(id => id.toString() === userId) ||
-                           guild.subLeaders.some(id => id.toString() === userId) ||
-                           guild.leader.toString() === userId;
+    const isMemberRecord = await GuildMember.findOne({ where: { guildId, userId } });
+    const isSubLeaderRecord = await GuildSubLeader.findOne({ where: { guildId, userId } });
+    const isAlreadyLeader = guild.leaderId === userId;
 
-    if (isAlreadyMember) {
+    if (isMemberRecord || isSubLeaderRecord || isAlreadyLeader) {
       return res.status(400).json({ error: 'User is already a member of this guild' });
     }
 
     // Check if there's already a pending invitation
     const existingInvitation = await Invitation.findOne({
-      guild: guildId,
-      invitedUser: userId,
-      status: 'pending',
-      expiresAt: { $gt: new Date() }
+      where: {
+        guildId,
+        invitedUserId: userId,
+        status: 'pending',
+        expiresAt: { [Op.gt]: new Date() }
+      }
     });
 
     if (existingInvitation) {
@@ -77,28 +83,32 @@ router.post('/send', authenticate, async (req, res) => {
     }
 
     // Check if guild is at max capacity
-    const totalMembers = 1 + guild.subLeaders.length + guild.members.length;
+    const memberCount = await GuildMember.count({ where: { guildId } });
+    const subLeaderCount = await GuildSubLeader.count({ where: { guildId } });
+    const totalMembers = 1 + subLeaderCount + memberCount;
     if (totalMembers >= guild.maxMembers) {
       return res.status(400).json({ error: 'Guild is at maximum capacity' });
     }
 
     // Create invitation
-    const invitation = new Invitation({
-      guild: guildId,
-      invitedUser: userId,
-      invitedBy: req.user._id,
+    const invitation = await Invitation.create({
+      guildId,
+      invitedUserId: userId,
+      invitedById: req.user.id,
       role,
       message
     });
 
-    await invitation.save();
+    // Reload with associations for response
+    const populatedInvitation = await Invitation.findByPk(invitation.id, {
+      include: [
+        { model: Guild, as: 'guild', attributes: ['id', 'name', 'description', 'logo'] },
+        { model: User, as: 'invitedUser', attributes: ['id', 'name', 'username', 'email'] },
+        { model: User, as: 'invitedBy', attributes: ['id', 'name', 'username', 'email'] }
+      ]
+    });
 
-    // Populate for response
-    await invitation.populate('guild', 'name description logo');
-    await invitation.populate('invitedUser', 'name username email');
-    await invitation.populate('invitedBy', 'name username email');
-
-    res.status(201).json(invitation);
+    res.status(201).json(populatedInvitation);
   } catch (error) {
     console.error('Error sending invitation:', error);
     res.status(500).json({ error: 'Failed to send invitation' });
@@ -108,14 +118,14 @@ router.post('/send', authenticate, async (req, res) => {
 // Accept an invitation
 router.post('/:invitationId/accept', authenticate, async (req, res) => {
   try {
-    const invitation = await Invitation.findById(req.params.invitationId);
+    const invitation = await Invitation.findByPk(req.params.invitationId);
 
     if (!invitation) {
       return res.status(404).json({ error: 'Invitation not found' });
     }
 
     // Check if invitation belongs to the user
-    if (invitation.invitedUser.toString() !== req.user._id.toString()) {
+    if (invitation.invitedUserId !== req.user.id) {
       return res.status(403).json({ error: 'This invitation is not for you' });
     }
 
@@ -130,25 +140,25 @@ router.post('/:invitationId/accept', authenticate, async (req, res) => {
     }
 
     // Get guild
-    const guild = await Guild.findById(invitation.guild);
+    const guild = await Guild.findByPk(invitation.guildId);
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
     // Check if guild is at max capacity
-    const totalMembers = 1 + guild.subLeaders.length + guild.members.length;
+    const memberCount = await GuildMember.count({ where: { guildId: guild.id } });
+    const subLeaderCount = await GuildSubLeader.count({ where: { guildId: guild.id } });
+    const totalMembers = 1 + subLeaderCount + memberCount;
     if (totalMembers >= guild.maxMembers) {
       return res.status(400).json({ error: 'Guild is at maximum capacity' });
     }
 
     // Add user to guild
     if (invitation.role === 'subLeader') {
-      guild.subLeaders.push(req.user._id);
+      await GuildSubLeader.create({ guildId: guild.id, userId: req.user.id });
     } else {
-      guild.members.push(req.user._id);
+      await GuildMember.create({ guildId: guild.id, userId: req.user.id });
     }
-
-    await guild.save();
 
     // Update invitation status
     invitation.status = 'accepted';
@@ -164,14 +174,14 @@ router.post('/:invitationId/accept', authenticate, async (req, res) => {
 // Decline an invitation
 router.post('/:invitationId/decline', authenticate, async (req, res) => {
   try {
-    const invitation = await Invitation.findById(req.params.invitationId);
+    const invitation = await Invitation.findByPk(req.params.invitationId);
 
     if (!invitation) {
       return res.status(404).json({ error: 'Invitation not found' });
     }
 
     // Check if invitation belongs to the user
-    if (invitation.invitedUser.toString() !== req.user._id.toString()) {
+    if (invitation.invitedUserId !== req.user.id) {
       return res.status(403).json({ error: 'This invitation is not for you' });
     }
 
@@ -194,26 +204,28 @@ router.post('/:invitationId/decline', authenticate, async (req, res) => {
 // Get invitations sent by a guild (for leaders/subLeaders)
 router.get('/guild/:guildId', authenticate, async (req, res) => {
   try {
-    const guild = await Guild.findById(req.params.guildId);
+    const guild = await Guild.findByPk(req.params.guildId);
 
     if (!guild) {
       return res.status(404).json({ error: 'Guild not found' });
     }
 
     // Check if user has permission
-    const isLeader = guild.leader.toString() === req.user._id.toString();
-    const isSubLeader = guild.subLeaders.some(id => id.toString() === req.user._id.toString());
+    const isLeader = guild.leaderId === req.user.id;
+    const isSubLeader = await GuildSubLeader.findOne({ where: { guildId: guild.id, userId: req.user.id } });
 
     if (!isLeader && !isSubLeader) {
       return res.status(403).json({ error: 'Only leaders and sub-leaders can view guild invitations' });
     }
 
-    const invitations = await Invitation.find({
-      guild: req.params.guildId
-    })
-      .populate('invitedUser', 'name username email')
-      .populate('invitedBy', 'name username email')
-      .sort({ createdAt: -1 });
+    const invitations = await Invitation.findAll({
+      where: { guildId: req.params.guildId },
+      include: [
+        { model: User, as: 'invitedUser', attributes: ['id', 'name', 'username', 'email'] },
+        { model: User, as: 'invitedBy', attributes: ['id', 'name', 'username', 'email'] }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.json(invitations);
   } catch (error) {

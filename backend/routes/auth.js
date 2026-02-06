@@ -1,5 +1,6 @@
 import express from 'express';
 import User from '../models/User.js';
+import Guild from '../models/Guild.js';
 import { generateToken, authenticate } from '../middleware/auth.js';
 import passport from '../config/passport.js';
 
@@ -14,7 +15,7 @@ router.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
     }
@@ -27,7 +28,7 @@ router.post('/register', async (req, res) => {
       role: 'user'
     });
 
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.cookie('token', token, {
       httpOnly: true,
@@ -52,7 +53,7 @@ router.post('/login', async (req, res) => {
 
     console.log('🔍 Login attempt:', { email, provider: 'email' });
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email } });
     console.log('👤 User found:', user ? `Yes (${user.email}, provider: ${user.provider})` : 'No');
 
     if (!user) {
@@ -76,7 +77,7 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ error: 'Account is inactive' });
     }
 
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.cookie('token', token, {
       httpOnly: true,
@@ -110,7 +111,7 @@ if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
       console.log('   Provider:', req.user.provider);
       console.log('   Role:', req.user.role);
 
-      const token = generateToken(req.user._id);
+      const token = generateToken(req.user.id);
       console.log('   Token generated:', token ? '✅' : '❌');
 
       res.cookie('token', token, {
@@ -143,7 +144,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       console.log('   Provider:', req.user.provider);
       console.log('   Role:', req.user.role);
 
-      const token = generateToken(req.user._id);
+      const token = generateToken(req.user.id);
       console.log('   Token generated:', token ? '✅' : '❌');
 
       res.cookie('token', token, {
@@ -166,7 +167,9 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 // Get current user
 router.get('/me', authenticate, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).populate('guild', 'name logo');
+    const user = await User.findByPk(req.user.id, {
+      include: [{ model: Guild, as: 'guild', attributes: ['id', 'name', 'logo'] }]
+    });
     res.json({ user });
   } catch (error) {
     res.json({ user: req.user });

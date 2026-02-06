@@ -1,8 +1,8 @@
 import express from 'express';
 import multer from 'multer';
 import XLSX from 'xlsx';
+import { Guild, User, GuildMember, GuildSubLeader } from '../models/index.js';
 import GuildInventory from '../models/GuildInventory.js';
-import Guild from '../models/Guild.js';
 import Defense from '../models/Defense.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -47,13 +47,13 @@ router.post(
     try {
       const { guildId } = req.params;
 
-      const guild = await Guild.findById(guildId);
+      const guild = await Guild.findByPk(guildId);
       if (!guild) {
         return res.status(404).json({ error: 'Guilde non trouvée' });
       }
 
-      const isLeader = guild.leader.toString() === req.user._id.toString();
-      const isSubLeader = guild.subLeaders?.some(s => s.toString() === req.user._id.toString());
+      const isLeader = guild.leaderId === req.user.id;
+      const isSubLeader = await GuildSubLeader.findOne({ where: { guildId, userId: req.user.id } });
       const isAdmin = req.user.role === 'admin';
 
       if (!isLeader && !isSubLeader && !isAdmin) {
@@ -125,19 +125,19 @@ router.post(
         monsters: Array.from(player.monsters)
       }));
 
-      let inventory = await GuildInventory.findOne({ guild: guildId });
+      let inventory = await GuildInventory.findOne({ where: { guildId } });
 
       if (inventory) {
         inventory.players = playersArray;
-        inventory.uploadedBy = req.user._id;
+        inventory.uploadedById = req.user.id;
         inventory.fileName = req.file.originalname;
         inventory.monsterColumns = Array.from(allMonsterColumns);
         await inventory.save();
       } else {
         inventory = await GuildInventory.create({
-          guild: guildId,
+          guildId,
           players: playersArray,
-          uploadedBy: req.user._id,
+          uploadedById: req.user.id,
           fileName: req.file.originalname,
           monsterColumns: Array.from(allMonsterColumns)
         });
@@ -165,20 +165,24 @@ router.get(
     try {
       const { guildId } = req.params;
 
-      const guild = await Guild.findById(guildId);
+      const guild = await Guild.findByPk(guildId);
       if (!guild) {
         return res.status(404).json({ error: 'Guilde non trouvée' });
       }
 
-      const isMember = guild.members.some(m => m.toString() === req.user._id.toString());
+      const isMember = await GuildMember.findOne({ where: { guildId, userId: req.user.id } });
+      const isSubLeader = await GuildSubLeader.findOne({ where: { guildId, userId: req.user.id } });
+      const isLeader = guild.leaderId === req.user.id;
       const isAdmin = req.user.role === 'admin';
 
-      if (!isMember && !isAdmin) {
+      if (!isMember && !isSubLeader && !isLeader && !isAdmin) {
         return res.status(403).json({ error: 'Accès non autorisé' });
       }
 
-      const inventory = await GuildInventory.findOne({ guild: guildId })
-        .populate('uploadedBy', 'name');
+      const inventory = await GuildInventory.findOne({
+        where: { guildId },
+        include: [{ model: User, as: 'uploadedBy', attributes: ['id', 'name'] }]
+      });
 
       if (!inventory) {
         return res.json({ inventory: null });
@@ -208,25 +212,27 @@ router.get(
     try {
       const { guildId, defenseId } = req.params;
 
-      const guild = await Guild.findById(guildId);
+      const guild = await Guild.findByPk(guildId);
       if (!guild) {
         return res.status(404).json({ error: 'Guilde non trouvée' });
       }
 
-      const isMember = guild.members.some(m => m.toString() === req.user._id.toString());
+      const isMember = await GuildMember.findOne({ where: { guildId, userId: req.user.id } });
+      const isSubLeader = await GuildSubLeader.findOne({ where: { guildId, userId: req.user.id } });
+      const isLeader = guild.leaderId === req.user.id;
       const isAdmin = req.user.role === 'admin';
 
-      if (!isMember && !isAdmin) {
+      if (!isMember && !isSubLeader && !isLeader && !isAdmin) {
         return res.status(403).json({ error: 'Accès non autorisé' });
       }
 
-      const defense = await Defense.findById(defenseId);
+      const defense = await Defense.findByPk(defenseId);
 
       if (!defense) {
         return res.status(404).json({ error: 'Défense non trouvée' });
       }
 
-      const inventory = await GuildInventory.findOne({ guild: guildId });
+      const inventory = await GuildInventory.findOne({ where: { guildId } });
 
       if (!inventory) {
         return res.json({
@@ -291,19 +297,21 @@ router.post(
         return res.status(400).json({ error: 'Liste de monstres requise' });
       }
 
-      const guild = await Guild.findById(guildId);
+      const guild = await Guild.findByPk(guildId);
       if (!guild) {
         return res.status(404).json({ error: 'Guilde non trouvée' });
       }
 
-      const isMember = guild.members.some(m => m.toString() === req.user._id.toString());
+      const isMember = await GuildMember.findOne({ where: { guildId, userId: req.user.id } });
+      const isSubLeader = await GuildSubLeader.findOne({ where: { guildId, userId: req.user.id } });
+      const isLeader = guild.leaderId === req.user.id;
       const isAdmin = req.user.role === 'admin';
 
-      if (!isMember && !isAdmin) {
+      if (!isMember && !isSubLeader && !isLeader && !isAdmin) {
         return res.status(403).json({ error: 'Accès non autorisé' });
       }
 
-      const inventory = await GuildInventory.findOne({ guild: guildId });
+      const inventory = await GuildInventory.findOne({ where: { guildId } });
 
       if (!inventory) {
         return res.json({
@@ -360,20 +368,20 @@ router.delete(
     try {
       const { guildId } = req.params;
 
-      const guild = await Guild.findById(guildId);
+      const guild = await Guild.findByPk(guildId);
       if (!guild) {
         return res.status(404).json({ error: 'Guilde non trouvée' });
       }
 
-      const isLeader = guild.leader.toString() === req.user._id.toString();
-      const isSubLeader = guild.subLeaders?.some(s => s.toString() === req.user._id.toString());
+      const isLeader = guild.leaderId === req.user.id;
+      const isSubLeader = await GuildSubLeader.findOne({ where: { guildId, userId: req.user.id } });
       const isAdmin = req.user.role === 'admin';
 
       if (!isLeader && !isSubLeader && !isAdmin) {
         return res.status(403).json({ error: 'Non autorisé' });
       }
 
-      await GuildInventory.findOneAndDelete({ guild: guildId });
+      await GuildInventory.destroy({ where: { guildId } });
 
       res.json({ message: 'Inventaire supprimé' });
     } catch (error) {
