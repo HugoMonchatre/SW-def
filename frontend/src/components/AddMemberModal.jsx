@@ -10,7 +10,7 @@ function AddMemberModal({ isOpen, onClose, users, guildMembers, onAddMember }) {
 
   // Filter available users (not already in guild)
   const availableUsers = users.filter(u =>
-    !u.guild && !guildMembers?.some(m => m._id === u._id)
+    !u.guild && !guildMembers?.some(m => m.id === u.id)
   );
 
   // Filter by search query
@@ -72,7 +72,7 @@ function AddMemberModal({ isOpen, onClose, users, guildMembers, onAddMember }) {
           </p>
         ) : (
           paginatedUsers.map(u => (
-            <div key={u._id} className={styles.userItem}>
+            <div key={u.id} className={styles.userItem}>
               <div className={styles.userInfo}>
                 {u.avatar ? (
                   <img src={u.avatar} alt={u.name} className={styles.avatarSmall} />
@@ -88,7 +88,7 @@ function AddMemberModal({ isOpen, onClose, users, guildMembers, onAddMember }) {
               </div>
               <button
                 className={styles.btnAdd}
-                onClick={() => onAddMember(u._id)}
+                onClick={() => onAddMember(u.id)}
               >
                 Ajouter
               </button>

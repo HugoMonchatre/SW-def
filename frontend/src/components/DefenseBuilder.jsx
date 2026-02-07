@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Modal, ConfirmDialog } from './Modal';
 import DefenseDetail from './DefenseDetail';
-import axios from 'axios';
+import api from '../services/api';
+import { useMonsterSearch } from '../hooks/useMonsterSearch';
+import { usePermissions } from '../hooks/usePermissions';
+import { getElementColor, formatLeaderSkill } from '../utils/monsters';
 import styles from './DefenseBuilder.module.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function DefenseBuilder({ guildId, guild, user, onToast }) {
   const [defenses, setDefenses] = useState([]);
@@ -12,10 +13,6 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [defenseName, setDefenseName] = useState('');
   const [selectedMonsters, setSelectedMonsters] = useState([null, null, null]);
-  const [monsterSearch, setMonsterSearch] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [activeSlot, setActiveSlot] = useState(null);
   const [editingDefense, setEditingDefense] = useState(null);
   const [selectedDefense, setSelectedDefense] = useState(null);
   const [defenseSearchQuery, setDefenseSearchQuery] = useState('');
@@ -34,11 +31,14 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
   const [loadingPlayers, setLoadingPlayers] = useState(false);
   const fileInputRef = useRef(null);
 
-  const canManageInventory = guild && (
-    guild.leader?._id === user?._id ||
-    guild.subLeaders?.some(s => s._id === user?._id) ||
-    user?.role === 'admin'
-  );
+  const { canManage: canManageInventory, canManageItem: canManageDefense } = usePermissions(guild, user);
+
+  const {
+    monsterSearch, setMonsterSearch,
+    searchResults, searchLoading,
+    activeSlot, setActiveSlot,
+    clearSearch,
+  } = useMonsterSearch();
 
   useEffect(() => {
     if (guildId) {
@@ -71,10 +71,7 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
 
   const fetchInventory = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/inventory/${guildId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/inventory/${guildId}`);
       setInventory(response.data.inventory);
     } catch (error) {
       console.error('Error fetching inventory:', error);
@@ -90,12 +87,8 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
     formData.append('file', file);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/inventory/upload/${guildId}`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
-        }
+      const response = await api.post(`/inventory/upload/${guildId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
       onToast(`${response.data.message} (${response.data.playersCount} joueurs, ${response.data.monstersCount} monstres)`, 'success');
       fetchInventory();
@@ -111,10 +104,7 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
 
   const deleteInventory = async () => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/inventory/${guildId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/inventory/${guildId}`);
       onToast('Inventaire supprimé', 'success');
       setInventory(null);
     } catch (error) {
@@ -125,11 +115,8 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
   const checkCompatiblePlayers = async (monsterNames) => {
     setLoadingPlayers(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/inventory/${guildId}/check-monsters`, {
+      const response = await api.post(`/inventory/${guildId}/check-monsters`, {
         monsters: monsterNames
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       setCompatiblePlayers(response.data.compatiblePlayers || []);
       setPartialPlayers(response.data.partialPlayers || []);
@@ -142,10 +129,7 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
 
   const fetchDefenses = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/defenses/guild/${guildId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/defenses/guild/${guildId}`);
       setDefenses(response.data.defenses);
     } catch (error) {
       console.error('Error fetching defenses:', error);
@@ -154,42 +138,9 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
     }
   };
 
-  const searchMonsters = useCallback(async (query) => {
-    if (!query || query.length < 1) {
-      setSearchResults([]);
-      return;
-    }
-
-    setSearchLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/defenses/monsters/search`, {
-        params: { query },
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setSearchResults(response.data.results || []);
-    } catch (error) {
-      console.error('Error searching monsters:', error);
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const debounce = setTimeout(() => {
-      if (monsterSearch) {
-        searchMonsters(monsterSearch);
-      }
-    }, 300);
-
-    return () => clearTimeout(debounce);
-  }, [monsterSearch, searchMonsters]);
-
   const selectMonster = (monster) => {
     if (activeSlot === null) return;
 
-    // leader_skill is already included in the monster data from the API
     const newMonsters = [...selectedMonsters];
     newMonsters[activeSlot] = {
       com2us_id: monster.com2us_id,
@@ -210,9 +161,7 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
       setDefenseName(monsterNames);
     }
 
-    setActiveSlot(null);
-    setMonsterSearch('');
-    setSearchResults([]);
+    clearSearch();
   };
 
   const removeMonster = (slot) => {
@@ -254,23 +203,17 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
     }
 
     try {
-      const token = localStorage.getItem('token');
-
       if (editingDefense) {
-        await axios.patch(`${API_URL}/defenses/${editingDefense._id}`, {
+        await api.patch(`/defenses/${editingDefense.id}`, {
           name: defenseName,
           monsters: selectedMonsters
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
         });
         onToast('Défense mise à jour avec succès !', 'success');
       } else {
-        await axios.post(`${API_URL}/defenses`, {
+        await api.post('/defenses', {
           name: defenseName,
           guildId,
           monsters: selectedMonsters
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
         });
         onToast('Défense créée avec succès !', 'success');
       }
@@ -285,63 +228,20 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
   const confirmDeleteDefense = (defense) => {
     setConfirmDialog({
       isOpen: true,
-      defenseId: defense._id,
+      defenseId: defense.id,
       defenseName: defense.name
     });
   };
 
   const deleteDefense = async () => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/defenses/${confirmDialog.defenseId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/defenses/${confirmDialog.defenseId}`);
       onToast('Défense supprimée avec succès !', 'success');
       setConfirmDialog({ isOpen: false, defenseId: null, defenseName: '' });
       fetchDefenses();
     } catch (error) {
       onToast(error.response?.data?.error || 'Erreur lors de la suppression', 'error');
     }
-  };
-
-  const canManageDefense = (defense) => {
-    if (!user || !guild) return false;
-
-    // Creator can manage
-    if (defense.createdBy?._id === user._id) return true;
-
-    // Guild leader can manage
-    if (guild.leader?._id === user._id) return true;
-
-    // Sub-leaders can manage
-    if (guild.subLeaders?.some(s => s._id === user._id)) return true;
-
-    // Admin can manage
-    if (user.role === 'admin') return true;
-
-    return false;
-  };
-
-  const getElementColor = (element) => {
-    const colors = {
-      Fire: '#e74c3c',
-      Water: '#3498db',
-      Wind: '#f1c40f',
-      Light: '#ecf0f1',
-      Dark: '#9b59b6'
-    };
-    return colors[element] || '#95a5a6';
-  };
-
-  const formatLeaderSkill = (leaderSkill) => {
-    if (!leaderSkill) return null;
-    let text = `${leaderSkill.attribute} +${leaderSkill.amount}%`;
-    if (leaderSkill.area === 'Element' && leaderSkill.element) {
-      text += ` (${leaderSkill.element})`;
-    } else if (leaderSkill.area !== 'General') {
-      text += ` (${leaderSkill.area})`;
-    }
-    return text;
   };
 
   const filteredDefenses = defenses.filter(defense => {
@@ -451,7 +351,7 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
             <div className={styles.defensesList}>
               {filteredDefenses.map(defense => (
             <div
-              key={defense._id}
+              key={defense.id}
               className={styles.defenseCard}
               onClick={() => setSelectedDefense(defense)}
             >
@@ -464,11 +364,11 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
                   <div className={styles.defenseActions} onClick={e => e.stopPropagation()}>
                     <button
                       className={styles.btnManage}
-                      onClick={() => setOpenMenuId(openMenuId === defense._id ? null : defense._id)}
+                      onClick={() => setOpenMenuId(openMenuId === defense.id ? null : defense.id)}
                     >
                       Gérer
                     </button>
-                    {openMenuId === defense._id && (
+                    {openMenuId === defense.id && (
                       <div className={styles.manageMenu}>
                         <button
                           className={styles.menuItem}

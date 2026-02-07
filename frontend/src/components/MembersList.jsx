@@ -10,8 +10,8 @@ function MembersList({
   onRemove
 }) {
   const regularMembers = guild.members.filter(member =>
-    member._id !== guild.leader._id &&
-    !guild.subLeaders?.some(s => s._id === member._id)
+    member.id !== guild.leader.id &&
+    !guild.subLeaders?.some(s => s.id === member.id)
   );
 
   const canPromoteMore = (guild.subLeaders?.length || 0) < 4;
@@ -30,7 +30,7 @@ function MembersList({
 
           {guild.subLeaders?.map(subLeader => (
             <MemberCard
-              key={subLeader._id}
+              key={subLeader.id}
               member={subLeader}
               role="subLeader"
               canManage={canManage}
@@ -46,7 +46,7 @@ function MembersList({
         <div className={styles.membersList}>
           {regularMembers.map(member => (
             <MemberCard
-              key={member._id}
+              key={member.id}
               member={member}
               role="member"
               canManage={canManage}

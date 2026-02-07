@@ -2,9 +2,23 @@ import express from 'express';
 import { Op } from 'sequelize';
 import { Guild, User, GuildMember, GuildSubLeader, GuildJoinRequest } from '../models/index.js';
 import Invitation from '../models/Invitation.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, parseId } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Validate numeric route params
+router.param('id', (req, res, next, val) => {
+  const id = parseId(val);
+  if (id === null) return res.status(400).json({ error: 'Invalid ID' });
+  req.params.id = id;
+  next();
+});
+router.param('userId', (req, res, next, val) => {
+  const id = parseId(val);
+  if (id === null) return res.status(400).json({ error: 'Invalid user ID' });
+  req.params.userId = id;
+  next();
+});
 
 // Helper to get a fully populated guild by primary key
 const getPopulatedGuild = (id) => Guild.findByPk(id, {

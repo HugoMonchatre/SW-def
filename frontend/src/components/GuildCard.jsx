@@ -33,7 +33,7 @@ function GuildCard({
           {isPending ? (
             <button
               className={styles.btnPending}
-              onClick={() => onCancelRequest?.(guild._id)}
+              onClick={() => onCancelRequest?.(guild.id)}
             >
               Demande en attente ✕
             </button>

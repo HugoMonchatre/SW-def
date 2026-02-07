@@ -1,10 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import axios from 'axios';
+import api from '../services/api';
 import InvitationCard from '../components/InvitationCard';
 import styles from './DashboardPage.module.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function DashboardPage() {
   const { user, setUser } = useAuthStore();
@@ -38,10 +36,7 @@ function DashboardPage() {
 
   const fetchSwData = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/users/me/sw-data`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/users/me/sw-data');
       setSwData(response.data.swData);
     } catch (error) {
       console.error('Erreur lors du chargement des données SW:', error);
@@ -50,11 +45,8 @@ function DashboardPage() {
 
   const fetchUserGuild = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const guildId = typeof user.guild === 'object' ? user.guild._id : user.guild;
-      const response = await axios.get(`${API_URL}/guilds/${guildId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const guildId = typeof user.guild === 'object' ? user.guild.id : user.guild;
+      const response = await api.get(`/guilds/${guildId}`);
       setUserGuild(response.data.guild);
     } catch (error) {
       console.error('Erreur lors du chargement de la guilde:', error);
@@ -63,10 +55,7 @@ function DashboardPage() {
 
   const fetchInvitations = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/invitations/my-invitations`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/invitations/my-invitations');
       setInvitations(response.data);
     } catch (error) {
       console.error('Erreur lors du chargement des invitations:', error);
@@ -74,9 +63,8 @@ function DashboardPage() {
   };
 
   const handleInvitationResponse = (invitationId, status) => {
-    setInvitations(invitations.filter(inv => inv._id !== invitationId));
+    setInvitations(invitations.filter(inv => inv.id !== invitationId));
     if (status === 'accepted') {
-      // Reload user data to update guild info
       window.location.reload();
     }
   };
@@ -102,12 +90,7 @@ function DashboardPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.patch(
-        `${API_URL}/users/me/profile`,
-        profileForm,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await api.patch('/users/me/profile', profileForm);
       setUser(response.data.user);
       setShowProfileModal(false);
       alert('Profil mis à jour avec succès');
@@ -121,13 +104,11 @@ function DashboardPage() {
   const handleFileSelect = async (file) => {
     if (!file) return;
 
-    // Check file extension
     if (!file.name.endsWith('.json')) {
       setUploadStatus({ type: 'error', message: 'Le fichier doit être au format JSON' });
       return;
     }
 
-    // Check file size (max 20MB)
     if (file.size > 20 * 1024 * 1024) {
       setUploadStatus({ type: 'error', message: 'Le fichier est trop volumineux (max 20MB)' });
       return;
@@ -148,13 +129,7 @@ function DashboardPage() {
         return;
       }
 
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        `${API_URL}/users/me/sw-data`,
-        { jsonData },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
+      const response = await api.post('/users/me/sw-data', { jsonData });
       setSwData(response.data.swData);
       setUploadStatus({ type: 'success', message: 'Données importées avec succès !' });
     } catch (error) {
@@ -191,10 +166,7 @@ function DashboardPage() {
     if (!confirm('Êtes-vous sûr de vouloir supprimer vos données SW ?')) return;
 
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/users/me/sw-data`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete('/users/me/sw-data');
       setSwData(null);
       setUploadStatus({ type: 'success', message: 'Données supprimées' });
     } catch (error) {
@@ -217,15 +189,10 @@ function DashboardPage() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      await axios.patch(
-        `${API_URL}/users/me/password`,
-        {
-          currentPassword: passwordForm.currentPassword,
-          newPassword: passwordForm.newPassword
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.patch('/users/me/password', {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword
+      });
       setShowPasswordModal(false);
       setPasswordForm({
         currentPassword: '',
@@ -298,7 +265,7 @@ function DashboardPage() {
             <div className={styles.invitationsList}>
               {invitations.map((invitation) => (
                 <InvitationCard
-                  key={invitation._id}
+                  key={invitation.id}
                   invitation={invitation}
                   onResponse={handleInvitationResponse}
                 />

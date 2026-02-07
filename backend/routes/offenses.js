@@ -1,9 +1,22 @@
 import express from 'express';
 import { Op } from 'sequelize';
 import { Guild, User, Defense, Offense, Monster, GuildMember, GuildSubLeader, OffenseDefense } from '../models/index.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, parseId } from '../middleware/auth.js';
 
 const router = express.Router();
+
+router.param('id', (req, res, next, val) => {
+  const id = parseId(val);
+  if (id === null) return res.status(400).json({ error: 'Invalid ID' });
+  req.params.id = id;
+  next();
+});
+router.param('defenseId', (req, res, next, val) => {
+  const id = parseId(val);
+  if (id === null) return res.status(400).json({ error: 'Invalid defense ID' });
+  req.params.defenseId = id;
+  next();
+});
 
 // Search monsters from local database
 router.get('/monsters/search', authenticate, async (req, res) => {

@@ -1,9 +1,16 @@
 import express from 'express';
 import { Op } from 'sequelize';
 import User from '../models/User.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, parseId } from '../middleware/auth.js';
 
 const router = express.Router();
+
+router.param('id', (req, res, next, val) => {
+  const id = parseId(val);
+  if (id === null) return res.status(400).json({ error: 'Invalid ID' });
+  req.params.id = id;
+  next();
+});
 
 // Get all users (admin only)
 router.get('/', authenticate, authorize('admin'), async (req, res) => {

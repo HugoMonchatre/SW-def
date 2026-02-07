@@ -1,8 +1,15 @@
 import express from 'express';
 import { Guild, User, Defense, Tower, TowerDefense, GuildMember, GuildSubLeader } from '../models/index.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, parseId } from '../middleware/auth.js';
 
 const router = express.Router();
+
+router.param('guildId', (req, res, next, val) => {
+  const id = parseId(val);
+  if (id === null) return res.status(400).json({ error: 'Invalid guild ID' });
+  req.params.guildId = id;
+  next();
+});
 
 const MAX_DEFENSES_PER_TOWER = 5;
 const MAX_STARS_TOWERS = ['2', '7', '11']; // Tours avec restriction 4 étoiles max

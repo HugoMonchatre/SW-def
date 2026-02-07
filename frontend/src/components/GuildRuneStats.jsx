@@ -11,7 +11,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar, Line } from 'react-chartjs-2';
-import axios from 'axios';
+import api from '../services/api';
 import styles from './GuildRuneStats.module.css';
 
 ChartJS.register(
@@ -24,8 +24,6 @@ ChartJS.register(
   Tooltip,
   Legend
 );
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function GuildRuneStats({ guildId }) {
   const [runeStats, setRuneStats] = useState([]);
@@ -55,10 +53,7 @@ function GuildRuneStats({ guildId }) {
 
   const fetchRuneStats = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/guilds/${guildId}/rune-stats`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/guilds/${guildId}/rune-stats`);
       setRuneStats(response.data.runeStats);
     } catch (error) {
       console.error('Error fetching rune stats:', error);

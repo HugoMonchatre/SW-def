@@ -44,7 +44,7 @@ function MemberCard({
           {isSubLeader && onDemote && (
             <button
               className={styles.btnDemote}
-              onClick={() => onDemote(member._id)}
+              onClick={() => onDemote(member.id)}
               title="Rétrograder"
             >
               ↓
@@ -53,7 +53,7 @@ function MemberCard({
           {!isSubLeader && canPromote && onPromote && (
             <button
               className={styles.btnPromote}
-              onClick={() => onPromote(member._id)}
+              onClick={() => onPromote(member.id)}
               title="Promouvoir en sous-chef"
             >
               ⭐
@@ -62,7 +62,7 @@ function MemberCard({
           {onRemove && (
             <button
               className={styles.btnRemove}
-              onClick={() => onRemove(member._id)}
+              onClick={() => onRemove(member.id)}
               title="Retirer de la guilde"
             >
               ✕

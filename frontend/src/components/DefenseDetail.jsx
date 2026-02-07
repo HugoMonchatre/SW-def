@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal, ConfirmDialog } from './Modal';
-import axios from 'axios';
+import api from '../services/api';
+import { useMonsterSearch } from '../hooks/useMonsterSearch';
+import { usePermissions } from '../hooks/usePermissions';
+import { getElementColor, formatLeaderSkill } from '../utils/monsters';
 import styles from './DefenseDetail.module.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate }) {
   const [offenses, setOffenses] = useState([]);
@@ -20,30 +21,32 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
     { monster: null, instructions: '' }
   ]);
   const [generalInstructions, setGeneralInstructions] = useState('');
-  const [monsterSearch, setMonsterSearch] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [activeSlot, setActiveSlot] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     offenseId: null,
     offenseName: '',
-    action: 'delete' // 'delete' or 'unlink'
+    action: 'delete'
   });
   const [linkSearchQuery, setLinkSearchQuery] = useState('');
 
+  const { canManageItem: canManageOffense } = usePermissions(guild, user);
+
+  const {
+    monsterSearch, setMonsterSearch,
+    searchResults, searchLoading,
+    activeSlot, setActiveSlot,
+    clearSearch,
+  } = useMonsterSearch({ endpoint: '/offenses/monsters/search' });
+
   useEffect(() => {
-    if (defense?._id) {
+    if (defense?.id) {
       fetchOffenses();
     }
   }, [defense]);
 
   const fetchOffenses = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/offenses/defense/${defense._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/offenses/defense/${defense.id}`);
       setOffenses(response.data.offenses);
     } catch (error) {
       console.error('Error fetching offenses:', error);
@@ -55,10 +58,8 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
   const fetchAvailableOffenses = async () => {
     setLoadingAvailable(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/offenses/guild/${guild._id}`, {
-        params: { excludeDefenseId: defense._id },
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await api.get(`/offenses/guild/${guild.id}`, {
+        params: { excludeDefenseId: defense.id }
       });
       setAvailableOffenses(response.data.offenses);
     } catch (error) {
@@ -70,11 +71,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
 
   const linkOffense = async (offenseId) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/offenses/${offenseId}/link`,
-        { defenseId: defense._id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.post(`/offenses/${offenseId}/link`, { defenseId: defense.id });
       onToast('Offense liée avec succès !', 'success');
       setShowLinkModal(false);
       fetchOffenses();
@@ -86,11 +83,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
 
   const unlinkOffense = async (offenseId) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/offenses/${offenseId}/unlink`,
-        { defenseId: defense._id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.post(`/offenses/${offenseId}/unlink`, { defenseId: defense.id });
       onToast('Offense retirée de cette défense', 'success');
       setConfirmDialog({ isOpen: false, offenseId: null, offenseName: '', action: 'delete' });
       fetchOffenses();
@@ -104,38 +97,6 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
     fetchAvailableOffenses();
     setShowLinkModal(true);
   };
-
-  const searchMonsters = useCallback(async (query) => {
-    if (!query || query.length < 1) {
-      setSearchResults([]);
-      return;
-    }
-
-    setSearchLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/offenses/monsters/search`, {
-        params: { query },
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setSearchResults(response.data.results || []);
-    } catch (error) {
-      console.error('Error searching monsters:', error);
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const debounce = setTimeout(() => {
-      if (monsterSearch) {
-        searchMonsters(monsterSearch);
-      }
-    }, 300);
-
-    return () => clearTimeout(debounce);
-  }, [monsterSearch, searchMonsters]);
 
   const selectMonster = (monster) => {
     if (activeSlot === null) return;
@@ -163,9 +124,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
       setOffenseName(monsterNames);
     }
 
-    setActiveSlot(null);
-    setMonsterSearch('');
-    setSearchResults([]);
+    clearSearch();
   };
 
   const removeMonster = (slot) => {
@@ -228,29 +187,24 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
     }
 
     try {
-      const token = localStorage.getItem('token');
       const monsters = selectedMonsters.map(m => ({
         ...m.monster,
         instructions: m.instructions
       }));
 
       if (editingOffense) {
-        await axios.patch(`${API_URL}/offenses/${editingOffense._id}`, {
+        await api.patch(`/offenses/${editingOffense.id}`, {
           name: offenseName,
           monsters,
           generalInstructions
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
         });
         onToast('Offense mise à jour avec succès !', 'success');
       } else {
-        await axios.post(`${API_URL}/offenses`, {
+        await api.post('/offenses', {
           name: offenseName,
-          defenseId: defense._id,
+          defenseId: defense.id,
           monsters,
           generalInstructions
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
         });
         onToast('Offense créée avec succès !', 'success');
       }
@@ -264,11 +218,10 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
   };
 
   const confirmDeleteOffense = (offense) => {
-    // Si l'offense est liée à plusieurs défenses, proposer de délier au lieu de supprimer
     const isLinkedToMultiple = offense.defenses && offense.defenses.length > 1;
     setConfirmDialog({
       isOpen: true,
-      offenseId: offense._id,
+      offenseId: offense.id,
       offenseName: offense.name,
       action: isLinkedToMultiple ? 'unlink' : 'delete',
       linkedCount: offense.defenses?.length || 1
@@ -285,10 +238,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
 
   const deleteOffense = async () => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/offenses/${confirmDialog.offenseId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/offenses/${confirmDialog.offenseId}`);
       onToast('Offense supprimée avec succès !', 'success');
       setConfirmDialog({ isOpen: false, offenseId: null, offenseName: '', action: 'delete' });
       fetchOffenses();
@@ -300,45 +250,11 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
 
   const voteOffense = async (offenseId, voteType) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/offenses/${offenseId}/vote`, { voteType }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post(`/offenses/${offenseId}/vote`, { voteType });
       fetchOffenses();
     } catch (error) {
       onToast(error.response?.data?.error || 'Erreur lors du vote', 'error');
     }
-  };
-
-  const canManageOffense = (offense) => {
-    if (!user || !guild) return false;
-    if (offense.createdBy?._id === user._id) return true;
-    if (guild.leader?._id === user._id) return true;
-    if (guild.subLeaders?.some(s => s._id === user._id)) return true;
-    if (user.role === 'admin') return true;
-    return false;
-  };
-
-  const getElementColor = (element) => {
-    const colors = {
-      Fire: '#e74c3c',
-      Water: '#3498db',
-      Wind: '#f1c40f',
-      Light: '#ecf0f1',
-      Dark: '#9b59b6'
-    };
-    return colors[element] || '#95a5a6';
-  };
-
-  const formatLeaderSkill = (leaderSkill) => {
-    if (!leaderSkill) return null;
-    let text = `${leaderSkill.attribute} +${leaderSkill.amount}%`;
-    if (leaderSkill.area === 'Element' && leaderSkill.element) {
-      text += ` (${leaderSkill.element})`;
-    } else if (leaderSkill.area !== 'General') {
-      text += ` (${leaderSkill.area})`;
-    }
-    return text;
   };
 
   return (
@@ -400,19 +316,18 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
           ) : (
             <div className={styles.offensesList}>
               {offenses.map(offense => {
-                // Handle both old format (array) and new format (number)
                 const upVotes = typeof offense.votes?.up === 'number' ? offense.votes.up : 0;
                 const downVotes = typeof offense.votes?.down === 'number' ? offense.votes.down : 0;
 
                 return (
-                  <div key={offense._id} className={styles.offenseCard}>
+                  <div key={offense.id} className={styles.offenseCard}>
                     <div className={styles.offenseHeader}>
                       <h4>{offense.name}</h4>
                       <div className={styles.voteSection}>
                         <div className={styles.voteGroup}>
                           <button
                             className={`${styles.voteBtnSmall} ${styles.decrementUp}`}
-                            onClick={() => voteOffense(offense._id, 'decrement_up')}
+                            onClick={() => voteOffense(offense.id, 'decrement_up')}
                             title="Retirer un succes"
                             disabled={upVotes === 0}
                           >
@@ -420,7 +335,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
                           </button>
                           <button
                             className={`${styles.voteBtn} ${styles.upvote}`}
-                            onClick={() => voteOffense(offense._id, 'up')}
+                            onClick={() => voteOffense(offense.id, 'up')}
                             title="Ca a marche !"
                           >
                             <span className={styles.voteIcon}>✓</span>
@@ -430,7 +345,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
                         <div className={styles.voteGroup}>
                           <button
                             className={`${styles.voteBtn} ${styles.downvote}`}
-                            onClick={() => voteOffense(offense._id, 'down')}
+                            onClick={() => voteOffense(offense.id, 'down')}
                             title="Ca n'a pas marche"
                           >
                             <span className={styles.voteIcon}>✗</span>
@@ -438,7 +353,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
                           </button>
                           <button
                             className={`${styles.voteBtnSmall} ${styles.decrementDown}`}
-                            onClick={() => voteOffense(offense._id, 'decrement_down')}
+                            onClick={() => voteOffense(offense.id, 'decrement_down')}
                             title="Retirer un echec"
                             disabled={downVotes === 0}
                           >
@@ -705,16 +620,14 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
                       if (!linkSearchQuery.trim()) return true;
                       const query = linkSearchQuery.toLowerCase();
 
-                      // Search in offense name
                       if (offense.name.toLowerCase().includes(query)) return true;
 
-                      // Search in monster names
                       return offense.monsters.some(monster =>
                         monster.name.toLowerCase().includes(query)
                       );
                     })
                     .map(offense => (
-                  <div key={offense._id} className={styles.availableOffenseCard}>
+                  <div key={offense.id} className={styles.availableOffenseCard}>
                     <div className={styles.availableOffenseHeader}>
                       <h4>{offense.name}</h4>
                       <span className={styles.linkedCount}>
@@ -738,7 +651,7 @@ function DefenseDetail({ defense, guild, user, onClose, onToast, onOffenseUpdate
                       </span>
                       <button
                         className={styles.btnLink}
-                        onClick={() => linkOffense(offense._id)}
+                        onClick={() => linkOffense(offense.id)}
                       >
                         Lier à cette défense
                       </button>

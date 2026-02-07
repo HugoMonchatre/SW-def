@@ -1,20 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Modal } from './Modal';
 import { getTowerDisplayName } from './guildWarMapConfig';
-import axios from 'axios';
+import api from '../services/api';
+import { useMonsterSearch } from '../hooks/useMonsterSearch';
+import { usePermissions } from '../hooks/usePermissions';
+import { getElementColor } from '../utils/monsters';
 import styles from './TowerDefenseModal.module.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const MAX_DEFENSES_PER_TOWER = 5;
 const MAX_4_STAR_TOWERS = ['2', '7', '11'];
-
-const ELEMENT_COLORS = {
-  Fire: '#e74c3c',
-  Water: '#3498db',
-  Wind: '#f1c40f',
-  Light: '#ecf0f1',
-  Dark: '#9b59b6',
-};
 
 // Check if tower has 4-star restriction
 const is4StarTower = (towerId) => {
@@ -26,9 +20,6 @@ const is4StarTower = (towerId) => {
 const isDefenseValid4Star = (defense) => {
   return defense.monsters.every(m => m.natural_stars <= 4);
 };
-
-// Get element color
-const getElementColor = (element) => ELEMENT_COLORS[element] || '#95a5a6';
 
 // Render monster list (extracted to avoid recreation)
 const MonsterList = ({ monsters }) => (
@@ -60,10 +51,6 @@ function TowerDefenseModal({
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [defenseName, setDefenseName] = useState('');
   const [selectedMonsters, setSelectedMonsters] = useState([null, null, null]);
-  const [activeSlot, setActiveSlot] = useState(null);
-  const [monsterSearch, setMonsterSearch] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Memo states
@@ -72,29 +59,36 @@ function TowerDefenseModal({
   const [memoInput, setMemoInput] = useState('');
   const [savingMemo, setSavingMemo] = useState(false);
 
-  // Check if user can edit tower defenses
-  const canEdit = guild && (
-    guild.leader?._id === user?._id ||
-    guild.subLeaders?.some(s => s._id === user?._id) ||
-    user?.role === 'admin'
-  );
+  const { canManage: canEdit } = usePermissions(guild, user);
 
-  const isTowerFull = towerDefenses.length >= MAX_DEFENSES_PER_TOWER;
   const is4StarRestricted = is4StarTower(tower?.id);
 
+  const filterResults = useCallback((results) => {
+    if (is4StarRestricted) {
+      return results.filter(m => m.natural_stars <= 4);
+    }
+    return results;
+  }, [is4StarRestricted]);
+
+  const {
+    monsterSearch, setMonsterSearch,
+    searchResults, searchLoading,
+    activeSlot, setActiveSlot,
+    clearSearch,
+  } = useMonsterSearch({ filterResults });
+
+  const isTowerFull = towerDefenses.length >= MAX_DEFENSES_PER_TOWER;
+
   useEffect(() => {
-    if (isOpen && guild?._id) {
+    if (isOpen && guild?.id) {
       fetchDefenses();
       fetchTowerDefenses();
     }
-  }, [isOpen, guild?._id, tower?.id]);
+  }, [isOpen, guild?.id, tower?.id]);
 
   const fetchDefenses = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/defenses/guild/${guild._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/defenses/guild/${guild.id}`);
       setDefenses(response.data.defenses || []);
     } catch (error) {
       console.error('Error fetching defenses:', error);
@@ -104,10 +98,7 @@ function TowerDefenseModal({
   const fetchTowerDefenses = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/towers/${guild._id}/${tower?.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/towers/${guild.id}/${tower?.id}`);
       setTowerDefenses(response.data.defenses || []);
       setMemo(response.data.memo || '');
     } catch (error) {
@@ -121,8 +112,8 @@ function TowerDefenseModal({
 
   useEffect(() => {
     // Filter available defenses (not already assigned to this tower)
-    const assignedIds = towerDefenses.map(d => d._id);
-    let filtered = defenses.filter(d => !assignedIds.includes(d._id));
+    const assignedIds = towerDefenses.map(d => d.id);
+    let filtered = defenses.filter(d => !assignedIds.includes(d.id));
 
     // Filter by 4-star restriction if applicable
     if (is4StarRestricted) {
@@ -148,11 +139,7 @@ function TowerDefenseModal({
     }
 
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/towers/${guild._id}/${tower.id}/defense`,
-        { defenseId: defense._id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.post(`/towers/${guild.id}/${tower.id}/defense`, { defenseId: defense.id });
 
       setTowerDefenses(prev => [...prev, defense]);
       onToast?.('Défense ajoutée à la tour', 'success');
@@ -167,10 +154,7 @@ function TowerDefenseModal({
     if (!canEdit) return;
 
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/towers/${guild._id}/${tower.id}/defense/${index}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/towers/${guild.id}/${tower.id}/defense/${index}`);
 
       setTowerDefenses(prev => prev.filter((_, i) => i !== index));
       onToast?.('Défense retirée de la tour', 'success');
@@ -187,11 +171,7 @@ function TowerDefenseModal({
     const firstDefense = towerDefenses[0];
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/towers/${guild._id}/${tower.id}/fill`,
-        { defenseId: firstDefense._id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await api.post(`/towers/${guild.id}/${tower.id}/fill`, { defenseId: firstDefense.id });
 
       // Refetch tower defenses to get the updated list
       await fetchTowerDefenses();
@@ -208,11 +188,7 @@ function TowerDefenseModal({
 
     setSavingMemo(true);
     try {
-      const token = localStorage.getItem('token');
-      await axios.put(`${API_URL}/towers/${guild._id}/${tower.id}/memo`,
-        { memo: memoInput },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.put(`/towers/${guild.id}/${tower.id}/memo`, { memo: memoInput });
 
       setMemo(memoInput);
       setEditingMemo(false);
@@ -234,44 +210,6 @@ function TowerDefenseModal({
     setMemoInput('');
     setEditingMemo(false);
   };
-
-  // Monster search
-  const searchMonsters = useCallback(async (query) => {
-    if (!query || query.length < 1) {
-      setSearchResults([]);
-      return;
-    }
-
-    setSearchLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/defenses/monsters/search`, {
-        params: { query },
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      let results = response.data.results || [];
-      // Filter by 4-star max if tower has restriction
-      if (is4StarRestricted) {
-        results = results.filter(m => m.natural_stars <= 4);
-      }
-      setSearchResults(results);
-    } catch (error) {
-      console.error('Error searching monsters:', error);
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [is4StarRestricted]);
-
-  useEffect(() => {
-    const debounce = setTimeout(() => {
-      if (monsterSearch) {
-        searchMonsters(monsterSearch);
-      }
-    }, 300);
-
-    return () => clearTimeout(debounce);
-  }, [monsterSearch, searchMonsters]);
 
   const selectMonster = (monster) => {
     if (activeSlot === null) return;
@@ -296,9 +234,7 @@ function TowerDefenseModal({
       setDefenseName(monsterNames);
     }
 
-    setActiveSlot(null);
-    setMonsterSearch('');
-    setSearchResults([]);
+    clearSearch();
   };
 
   const removeMonster = (slot) => {
@@ -318,9 +254,7 @@ function TowerDefenseModal({
     setShowCreateForm(false);
     setDefenseName('');
     setSelectedMonsters([null, null, null]);
-    setActiveSlot(null);
-    setMonsterSearch('');
-    setSearchResults([]);
+    clearSearch();
   };
 
   const saveDefense = async () => {
@@ -347,24 +281,17 @@ function TowerDefenseModal({
 
     setSaving(true);
     try {
-      const token = localStorage.getItem('token');
-
       // Create the defense
-      const response = await axios.post(`${API_URL}/defenses`, {
+      const response = await api.post('/defenses', {
         name: defenseName,
-        guildId: guild._id,
+        guildId: guild.id,
         monsters: selectedMonsters
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
 
       const newDefense = response.data.defense;
 
       // Add it to the tower
-      await axios.post(`${API_URL}/towers/${guild._id}/${tower.id}/defense`,
-        { defenseId: newDefense._id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.post(`/towers/${guild.id}/${tower.id}/defense`, { defenseId: newDefense.id });
 
       // Update local state
       setDefenses(prev => [...prev, newDefense]);
@@ -470,7 +397,7 @@ function TowerDefenseModal({
             ) : (
               <div className={styles.defenseList}>
                 {towerDefenses.map((defense, index) => (
-                  <div key={`${defense._id}-${index}`} className={styles.defenseCard}>
+                  <div key={`${defense.id}-${index}`} className={styles.defenseCard}>
                     <div className={styles.defenseInfo}>
                       <span className={styles.defenseName}>{defense.name}</span>
                       <MonsterList monsters={defense.monsters} />
@@ -639,7 +566,7 @@ function TowerDefenseModal({
                       <div className={styles.availableList}>
                         {availableDefenses.map(defense => (
                           <div
-                            key={defense._id}
+                            key={defense.id}
                             className={`${styles.availableCard} ${isTowerFull ? styles.disabled : ''}`}
                             onClick={() => !isTowerFull && handleAddDefense(defense)}
                           >

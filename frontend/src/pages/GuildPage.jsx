@@ -9,10 +9,9 @@ import MembersList from '../components/MembersList';
 import AddMemberModal from '../components/AddMemberModal';
 import GuildWarMap from '../components/GuildWarMap';
 import GuildRuneStats from '../components/GuildRuneStats';
-import axios from 'axios';
+import api from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
 import styles from './GuildPage.module.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function GuildPage() {
   const { user, checkAuth } = useAuthStore();
@@ -32,7 +31,7 @@ function GuildPage() {
   const [isDefenseCollapsed, setIsDefenseCollapsed] = useState(false);
   const [isMapCollapsed, setIsMapCollapsed] = useState(false);
   const [showAllGuilds, setShowAllGuilds] = useState(false);
-  const [viewMode, setViewMode] = useState('guild'); // 'guild' or 'runeStats'
+  const [viewMode, setViewMode] = useState('guild');
   const [joinRequests, setJoinRequests] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
 
@@ -48,23 +47,8 @@ function GuildPage() {
     variant: 'danger'
   });
 
-  const canManageGuild = myGuild && (
-    myGuild.leader._id === user?._id || user?.role === 'admin'
-  );
-
-  const isGuildLeader = myGuild && myGuild.leader._id === user?._id;
-
-  const canPromoteMembers = myGuild && (
-    myGuild.leader._id === user?._id ||
-    myGuild.subLeaders?.some(s => s._id === user?._id) ||
-    user?.role === 'admin'
-  );
-
-  const canViewJoinRequests = myGuild && (
-    myGuild.leader._id === user?._id ||
-    myGuild.subLeaders?.some(s => s._id === user?._id) ||
-    user?.role === 'admin'
-  );
+  const { isLeader: isGuildLeader, canManageGuild, canManage: canPromoteMembers } = usePermissions(myGuild, user);
+  const canViewJoinRequests = canPromoteMembers;
 
   useEffect(() => {
     fetchGuilds();
@@ -82,8 +66,8 @@ function GuildPage() {
   useEffect(() => {
     if (!myGuild && guilds.length > 0) {
       const pending = guilds
-        .filter(g => g.joinRequests?.some(r => r.user === user?._id || r.user?._id === user?._id))
-        .map(g => g._id);
+        .filter(g => g.joinRequests?.some(r => r.user === user?.id || r.user?.id === user?.id))
+        .map(g => g.id);
       setPendingRequests(pending);
     }
   }, [guilds, myGuild, user]);
@@ -99,13 +83,10 @@ function GuildPage() {
 
   const fetchGuilds = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/guilds`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/guilds');
       setGuilds(response.data.guilds);
       const userGuild = response.data.guilds.find(g =>
-        g.members.some(m => m._id === user?._id)
+        g.members.some(m => m.id === user?.id)
       );
       setMyGuild(userGuild || null);
     } catch (error) {
@@ -117,11 +98,8 @@ function GuildPage() {
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const endpoint = user?.role === 'admin' ? `${API_URL}/users` : `${API_URL}/users/available-for-guild`;
-      const response = await axios.get(endpoint, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const endpoint = user?.role === 'admin' ? '/users' : '/users/available-for-guild';
+      const response = await api.get(endpoint);
       setUsers(response.data.users);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -131,10 +109,7 @@ function GuildPage() {
   const fetchJoinRequests = async () => {
     if (!myGuild) return;
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/guilds/${myGuild._id}/join-requests`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/guilds/${myGuild.id}/join-requests`);
       setJoinRequests(response.data.joinRequests || []);
     } catch (error) {
       console.error('Error fetching join requests:', error);
@@ -143,11 +118,7 @@ function GuildPage() {
 
   const requestToJoinGuild = async (guildId) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/guilds/${guildId}/join-request`,
-        { message: joinMessage },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.post(`/guilds/${guildId}/join-request`, { message: joinMessage });
       setShowJoinRequestModal(false);
       setJoinMessage('');
       setSelectedGuildForJoin(null);
@@ -160,10 +131,7 @@ function GuildPage() {
 
   const cancelJoinRequest = async (guildId) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/guilds/${guildId}/join-request`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/guilds/${guildId}/join-request`);
       setPendingRequests(prev => prev.filter(id => id !== guildId));
       showToast('Demande annulée', 'success');
     } catch (error) {
@@ -174,10 +142,7 @@ function GuildPage() {
   const acceptJoinRequest = async (userId) => {
     if (!myGuild) return;
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/guilds/${myGuild._id}/join-requests/${userId}/accept`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post(`/guilds/${myGuild.id}/join-requests/${userId}/accept`);
       fetchGuilds();
       fetchJoinRequests();
       showToast('Membre accepté !', 'success');
@@ -189,10 +154,7 @@ function GuildPage() {
   const rejectJoinRequest = async (userId) => {
     if (!myGuild) return;
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/guilds/${myGuild._id}/join-requests/${userId}/reject`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post(`/guilds/${myGuild.id}/join-requests/${userId}/reject`);
       fetchJoinRequests();
       showToast('Demande refusée', 'success');
     } catch (error) {
@@ -209,10 +171,7 @@ function GuildPage() {
   const createGuild = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/guilds`, formData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post('/guilds', formData);
       setShowCreateModal(false);
       setFormData({ name: '', description: '', logo: '' });
       fetchGuilds();
@@ -225,11 +184,7 @@ function GuildPage() {
   const addMember = async (userId) => {
     if (!myGuild) return;
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/guilds/${myGuild._id}/invite`,
-        { userId },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.post(`/guilds/${myGuild.id}/invite`, { userId });
       fetchGuilds();
       fetchUsers();
       setShowAddMemberModal(false);
@@ -246,10 +201,7 @@ function GuildPage() {
       'Êtes-vous sûr de vouloir retirer ce membre de la guilde ?',
       async () => {
         try {
-          const token = localStorage.getItem('token');
-          await axios.delete(`${API_URL}/guilds/${myGuild._id}/members/${userId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          await api.delete(`/guilds/${myGuild.id}/members/${userId}`);
           fetchGuilds();
           fetchUsers();
           showToast('Membre retiré avec succès !', 'success');
@@ -268,10 +220,7 @@ function GuildPage() {
       'Voulez-vous promouvoir ce membre en sous-chef ?',
       async () => {
         try {
-          const token = localStorage.getItem('token');
-          await axios.post(`${API_URL}/guilds/${myGuild._id}/sub-leaders/${userId}`, {}, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          await api.post(`/guilds/${myGuild.id}/sub-leaders/${userId}`);
           fetchGuilds();
           showToast('Membre promu sous-chef avec succès !', 'success');
         } catch (error) {
@@ -289,10 +238,7 @@ function GuildPage() {
       'Voulez-vous rétrograder ce sous-chef en membre régulier ?',
       async () => {
         try {
-          const token = localStorage.getItem('token');
-          await axios.delete(`${API_URL}/guilds/${myGuild._id}/sub-leaders/${userId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          await api.delete(`/guilds/${myGuild.id}/sub-leaders/${userId}`);
           fetchGuilds();
           showToast('Sous-chef rétrogradé avec succès !', 'success');
         } catch (error) {
@@ -310,10 +256,7 @@ function GuildPage() {
       'Êtes-vous sûr de vouloir supprimer cette guilde ? Cette action est irréversible et tous les membres seront retirés.',
       async () => {
         try {
-          const token = localStorage.getItem('token');
-          await axios.delete(`${API_URL}/guilds/${myGuild._id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          await api.delete(`/guilds/${myGuild.id}`);
           fetchGuilds();
           showToast('Guilde supprimée avec succès !', 'success');
         } catch (error) {
@@ -331,10 +274,7 @@ function GuildPage() {
       'Êtes-vous sûr de vouloir quitter cette guilde ? Vous devrez demander à rejoindre à nouveau si vous changez d\'avis.',
       async () => {
         try {
-          const token = localStorage.getItem('token');
-          await axios.post(`${API_URL}/guilds/${myGuild._id}/leave`, {}, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          await api.post(`/guilds/${myGuild.id}/leave`);
           await checkAuth();
           fetchGuilds();
           showToast('Vous avez quitté la guilde', 'success');
@@ -357,10 +297,7 @@ function GuildPage() {
   const updateGuild = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
-      await axios.patch(`${API_URL}/guilds/${myGuild._id}`, editFormData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.patch(`/guilds/${myGuild.id}`, editFormData);
       setShowEditGuildModal(false);
       fetchGuilds();
       showToast('Guilde mise à jour avec succès !', 'success');
@@ -432,7 +369,7 @@ function GuildPage() {
 
         {/* Rune Stats View */}
         {!showAllGuilds && myGuild && viewMode === 'runeStats' && (
-          <GuildRuneStats guildId={myGuild._id} />
+          <GuildRuneStats guildId={myGuild.id} />
         )}
 
         {/* No Guild Message */}
@@ -500,7 +437,7 @@ function GuildPage() {
                   <div className={styles.joinRequestsList}>
                     {joinRequests.map(request => (
                       <JoinRequestCard
-                        key={request.user._id}
+                        key={request.user.id}
                         request={request}
                         onAccept={acceptJoinRequest}
                         onReject={rejectJoinRequest}
@@ -536,7 +473,7 @@ function GuildPage() {
         {/* Defense Builder */}
         {!showAllGuilds && myGuild && viewMode === 'guild' && (
           <div className={`${styles.defenseWrapper} ${isDefenseCollapsed ? styles.defenseCollapsed : ''}`}>
-            <DefenseBuilder guildId={myGuild._id} guild={myGuild} user={user} onToast={showToast} />
+            <DefenseBuilder guildId={myGuild.id} guild={myGuild} user={user} onToast={showToast} />
           </div>
         )}
 
@@ -562,17 +499,17 @@ function GuildPage() {
         {showAllGuilds && (
           <div className={styles.allGuilds}>
             <h2>Toutes les Guildes</h2>
-            {guilds.filter(g => g._id !== myGuild?._id).length === 0 ? (
+            {guilds.filter(g => g.id !== myGuild?.id).length === 0 ? (
               <p className={styles.noGuilds}>Aucune autre guilde disponible.</p>
             ) : (
               <div className={styles.guildsGrid}>
                 {guilds
-                  .filter(guild => guild._id !== myGuild?._id)
+                  .filter(guild => guild.id !== myGuild?.id)
                   .map(guild => (
                     <GuildCard
-                      key={guild._id}
+                      key={guild.id}
                       guild={guild}
-                      isPending={pendingRequests.includes(guild._id)}
+                      isPending={pendingRequests.includes(guild.id)}
                       canJoin={!myGuild}
                       onJoinRequest={openJoinRequestModal}
                       onCancelRequest={cancelJoinRequest}
@@ -705,7 +642,7 @@ function GuildPage() {
               <button
                 type="button"
                 className={styles.btnPrimary}
-                onClick={() => requestToJoinGuild(selectedGuildForJoin?._id)}
+                onClick={() => requestToJoinGuild(selectedGuildForJoin?.id)}
               >
                 Envoyer la demande
               </button>

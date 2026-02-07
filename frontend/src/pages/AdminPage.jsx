@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import styles from './AdminPage.module.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function AdminPage() {
   const { user } = useAuthStore();
@@ -24,10 +22,7 @@ function AdminPage() {
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/users`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/users');
       setUsers(response.data.users);
     } catch (error) {
       setError('Erreur lors du chargement des utilisateurs');
@@ -38,15 +33,10 @@ function AdminPage() {
 
   const updateUserRole = async (userId, newRole) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.patch(
-        `${API_URL}/users/${userId}/role`,
-        { role: newRole },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.patch(`/users/${userId}/role`, { role: newRole });
 
       setUsers(users.map(u =>
-        u._id === userId ? { ...u, role: newRole } : u
+        u.id === userId ? { ...u, role: newRole } : u
       ));
     } catch (error) {
       alert('Erreur lors de la mise à jour du rôle');
@@ -55,15 +45,10 @@ function AdminPage() {
 
   const toggleUserStatus = async (userId, currentStatus) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.patch(
-        `${API_URL}/users/${userId}/status`,
-        { isActive: !currentStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.patch(`/users/${userId}/status`, { isActive: !currentStatus });
 
       setUsers(users.map(u =>
-        u._id === userId ? { ...u, isActive: !currentStatus } : u
+        u.id === userId ? { ...u, isActive: !currentStatus } : u
       ));
     } catch (error) {
       alert('Erreur lors de la mise à jour du statut');
@@ -76,12 +61,9 @@ function AdminPage() {
     }
 
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/users/${userId}`);
 
-      setUsers(users.filter(u => u._id !== userId));
+      setUsers(users.filter(u => u.id !== userId));
     } catch (error) {
       alert('Erreur lors de la suppression');
     }
@@ -121,7 +103,7 @@ function AdminPage() {
                 </thead>
                 <tbody>
                   {users.map((u) => (
-                    <tr key={u._id}>
+                    <tr key={u.id}>
                       <td>
                         <div className={styles.userCell}>
                           {u.avatar ? (
@@ -137,14 +119,14 @@ function AdminPage() {
                       <td>{u.email}</td>
                       <td style={{ textTransform: 'capitalize' }}>{u.provider}</td>
                       <td>
-                        {user._id === u._id ? (
+                        {user.id === u.id ? (
                           <span className={`${styles.badge} ${styles[u.role]}`}>
                             {u.role}
                           </span>
                         ) : (
                           <select
                             value={u.role}
-                            onChange={(e) => updateUserRole(u._id, e.target.value)}
+                            onChange={(e) => updateUserRole(u.id, e.target.value)}
                             className={styles.select}
                           >
                             <option value="user">User</option>
@@ -159,17 +141,17 @@ function AdminPage() {
                         </span>
                       </td>
                       <td>
-                        {user._id !== u._id && (
+                        {user.id !== u.id && (
                           <div className={styles.actions}>
                             <button
-                              onClick={() => toggleUserStatus(u._id, u.isActive)}
+                              onClick={() => toggleUserStatus(u.id, u.isActive)}
                               className={styles.btnAction}
                               title={u.isActive ? 'Désactiver' : 'Activer'}
                             >
                               {u.isActive ? '🔒' : '🔓'}
                             </button>
                             <button
-                              onClick={() => deleteUser(u._id)}
+                              onClick={() => deleteUser(u.id)}
                               className={`${styles.btnAction} ${styles.danger}`}
                               title="Supprimer"
                             >

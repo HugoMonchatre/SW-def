@@ -25,13 +25,13 @@ function JoinRequestCard({ request, onAccept, onReject }) {
       <div className={styles.joinRequestActions}>
         <button
           className={styles.btnAccept}
-          onClick={() => onAccept?.(request.user._id)}
+          onClick={() => onAccept?.(request.user.id)}
         >
           Accepter
         </button>
         <button
           className={styles.btnReject}
-          onClick={() => onReject?.(request.user._id)}
+          onClick={() => onReject?.(request.user.id)}
         >
           Refuser
         </button>

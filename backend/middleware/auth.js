@@ -37,6 +37,29 @@ export const authorize = (...roles) => {
   };
 };
 
+// Parse and validate an integer ID, returns null if invalid
+export const parseId = (value) => {
+  const id = parseInt(value, 10);
+  return isNaN(id) ? null : id;
+};
+
+// Middleware to validate :id param (and other common ID params)
+export const validateId = (...paramNames) => {
+  const names = paramNames.length > 0 ? paramNames : ['id'];
+  return (req, res, next) => {
+    for (const name of names) {
+      if (req.params[name] !== undefined) {
+        const id = parseId(req.params[name]);
+        if (id === null) {
+          return res.status(400).json({ error: `Invalid ${name}` });
+        }
+        req.params[name] = id;
+      }
+    }
+    next();
+  };
+};
+
 export const generateToken = (userId) => {
   return jwt.sign(
     { userId },

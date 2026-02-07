@@ -6,10 +6,8 @@ import {
   getTowerDisplayName,
   getTowerImagePath,
 } from './guildWarMapConfig';
-import axios from 'axios';
+import api from '../services/api';
 import styles from './GuildWarMap.module.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function GuildWarMap({ guild, user, members = [], onTowerClick, onToast }) {
   const [selectedTower, setSelectedTower] = useState(null);
@@ -18,13 +16,10 @@ function GuildWarMap({ guild, user, members = [], onTowerClick, onToast }) {
 
   // Fetch all tower defense counts
   const fetchTowerDefenses = useCallback(async () => {
-    if (!guild?._id) return;
+    if (!guild?.id) return;
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/towers/${guild._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/towers/${guild.id}`);
 
       const counts = {};
       (response.data.towers || []).forEach(tower => {
@@ -34,7 +29,7 @@ function GuildWarMap({ guild, user, members = [], onTowerClick, onToast }) {
     } catch (error) {
       console.error('Error fetching tower defenses:', error);
     }
-  }, [guild?._id]);
+  }, [guild?.id]);
 
   useEffect(() => {
     fetchTowerDefenses();

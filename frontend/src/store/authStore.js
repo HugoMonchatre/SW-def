@@ -1,9 +1,5 @@
 import { create } from 'zustand';
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-axios.defaults.withCredentials = true;
+import api from '../services/api';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -19,9 +15,7 @@ export const useAuthStore = create((set) => ({
         return;
       }
 
-      const response = await axios.get(`${API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/auth/me');
 
       set({
         user: response.data.user,
@@ -37,7 +31,7 @@ export const useAuthStore = create((set) => ({
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, {
+      const response = await api.post('/auth/login', {
         email,
         password
       });
@@ -64,7 +58,7 @@ export const useAuthStore = create((set) => ({
   register: async (name, email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.post(`${API_URL}/auth/register`, {
+      const response = await api.post('/auth/register', {
         name,
         email,
         password
@@ -91,12 +85,7 @@ export const useAuthStore = create((set) => ({
 
   logout: async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        await axios.post(`${API_URL}/auth/logout`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      }
+      await api.post('/auth/logout');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {

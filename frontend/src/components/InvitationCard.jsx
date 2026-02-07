@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import styles from './InvitationCard.module.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function InvitationCard({ invitation, onResponse }) {
   const [loading, setLoading] = useState(false);
@@ -10,13 +8,8 @@ function InvitationCard({ invitation, onResponse }) {
   const handleAccept = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(
-        `${API_URL}/invitations/${invitation._id}/accept`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      onResponse(invitation._id, 'accepted');
+      await api.post(`/invitations/${invitation.id}/accept`);
+      onResponse(invitation.id, 'accepted');
     } catch (error) {
       alert(error.response?.data?.error || 'Erreur lors de l\'acceptation de l\'invitation');
     } finally {
@@ -27,13 +20,8 @@ function InvitationCard({ invitation, onResponse }) {
   const handleDecline = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(
-        `${API_URL}/invitations/${invitation._id}/decline`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      onResponse(invitation._id, 'declined');
+      await api.post(`/invitations/${invitation.id}/decline`);
+      onResponse(invitation.id, 'declined');
     } catch (error) {
       alert(error.response?.data?.error || 'Erreur lors du refus de l\'invitation');
     } finally {

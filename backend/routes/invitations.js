@@ -2,9 +2,22 @@ import express from 'express';
 import { Op } from 'sequelize';
 import { Guild, User, GuildMember, GuildSubLeader } from '../models/index.js';
 import Invitation from '../models/Invitation.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, parseId } from '../middleware/auth.js';
 
 const router = express.Router();
+
+router.param('invitationId', (req, res, next, val) => {
+  const id = parseId(val);
+  if (id === null) return res.status(400).json({ error: 'Invalid invitation ID' });
+  req.params.invitationId = id;
+  next();
+});
+router.param('guildId', (req, res, next, val) => {
+  const id = parseId(val);
+  if (id === null) return res.status(400).json({ error: 'Invalid guild ID' });
+  req.params.guildId = id;
+  next();
+});
 
 // Get all invitations for the current user
 router.get('/my-invitations', authenticate, async (req, res) => {

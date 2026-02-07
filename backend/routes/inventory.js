@@ -4,9 +4,22 @@ import XLSX from 'xlsx';
 import { Guild, User, GuildMember, GuildSubLeader } from '../models/index.js';
 import GuildInventory from '../models/GuildInventory.js';
 import Defense from '../models/Defense.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, parseId } from '../middleware/auth.js';
 
 const router = express.Router();
+
+router.param('guildId', (req, res, next, val) => {
+  const id = parseId(val);
+  if (id === null) return res.status(400).json({ error: 'Invalid guild ID' });
+  req.params.guildId = id;
+  next();
+});
+router.param('defenseId', (req, res, next, val) => {
+  const id = parseId(val);
+  if (id === null) return res.status(400).json({ error: 'Invalid defense ID' });
+  req.params.defenseId = id;
+  next();
+});
 
 const storage = multer.memoryStorage();
 const upload = multer({
