@@ -26,7 +26,14 @@
       "Bash(cat:*)",
       "Bash(node scripts/initAdmin.js:*)",
       "Bash(wc:*)",
-      "Bash(identify:*)"
+      "Bash(identify:*)",
+      "WebFetch(domain:swarfarm.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(psql:*)",
+      "Bash(postgres:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm run build:*)",
+      "Bash(test:*)"
     ]
   }
 }

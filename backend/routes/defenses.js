@@ -153,6 +153,17 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'A defense must have exactly 3 monsters' });
     }
 
+    // Check for duplicate defense (same 3 monsters regardless of order)
+    const newIds = monsters.map(m => m.com2us_id).sort().join(',');
+    const existingDefenses = await Defense.findAll({ where: { guildId } });
+    const duplicate = existingDefenses.find(d => {
+      const existingIds = (d.monsters || []).map(m => m.com2us_id).sort().join(',');
+      return existingIds === newIds;
+    });
+    if (duplicate) {
+      return res.status(409).json({ error: `Une défense identique existe déjà : "${duplicate.name}"` });
+    }
+
     const defense = await Defense.create({
       name,
       guildId,
@@ -205,6 +216,20 @@ router.patch('/:id', authenticate, async (req, res) => {
       if (monsters.length !== 3) {
         return res.status(400).json({ error: 'A defense must have exactly 3 monsters' });
       }
+
+      // Check for duplicate defense (excluding current one)
+      const newIds = monsters.map(m => m.com2us_id).sort().join(',');
+      const existingDefenses = await Defense.findAll({
+        where: { guildId: defense.guildId, id: { [Op.ne]: defense.id } }
+      });
+      const duplicate = existingDefenses.find(d => {
+        const existingIds = (d.monsters || []).map(m => m.com2us_id).sort().join(',');
+        return existingIds === newIds;
+      });
+      if (duplicate) {
+        return res.status(409).json({ error: `Une défense identique existe déjà : "${duplicate.name}"` });
+      }
+
       defense.monsters = monsters;
     }
     if (position !== undefined) defense.position = position;
@@ -228,6 +253,77 @@ router.patch('/:id', authenticate, async (req, res) => {
   }
 });
 
+// Check which guild members can make a defense (from their swData)
+router.post('/guild/:guildId/check-players', authenticate, async (req, res) => {
+  try {
+    const { guildId } = req.params;
+    const { monsters } = req.body;
+
+    if (!monsters || !Array.isArray(monsters) || monsters.length === 0) {
+      return res.status(400).json({ error: 'Liste de monstres requise' });
+    }
+
+    const guild = await Guild.findByPk(guildId);
+    if (!guild) {
+      return res.status(404).json({ error: 'Guilde non trouvée' });
+    }
+
+    // Get all guild member user IDs
+    const memberRows = await GuildMember.findAll({ where: { guildId }, attributes: ['userId'] });
+    const subLeaderRows = await GuildSubLeader.findAll({ where: { guildId }, attributes: ['userId'] });
+    const memberIds = [
+      guild.leaderId,
+      ...subLeaderRows.map(r => r.userId),
+      ...memberRows.map(r => r.userId)
+    ];
+    const uniqueIds = [...new Set(memberIds)];
+
+    // Get users with swData
+    const users = await User.findAll({
+      where: { id: { [Op.in]: uniqueIds }, swData: { [Op.ne]: null } },
+      attributes: ['id', 'name', 'username', 'swData']
+    });
+
+    const monsterIds = monsters.map(m => m.com2us_id);
+    const compatiblePlayers = [];
+    const partialPlayers = [];
+    let membersWithUnits = 0;
+
+    for (const user of users) {
+      const units = user.swData.units;
+      if (!units || !Array.isArray(units) || units.length === 0) continue;
+      membersWithUnits++;
+
+      const unitSet = new Set(units);
+      const hasMonsters = monsterIds.map(id => unitSet.has(id));
+      const matchCount = hasMonsters.filter(Boolean).length;
+
+      const displayName = user.username || user.name;
+
+      if (matchCount === monsterIds.length) {
+        compatiblePlayers.push({ name: displayName });
+      } else if (matchCount > 0) {
+        const missingMonsters = monsters
+          .filter((_, i) => !hasMonsters[i])
+          .map(m => m.name);
+        partialPlayers.push({ name: displayName, matchCount, missingMonsters });
+      }
+    }
+
+    partialPlayers.sort((a, b) => b.matchCount - a.matchCount);
+
+    res.json({
+      compatiblePlayers,
+      partialPlayers: partialPlayers.slice(0, 10),
+      membersWithData: users.length,
+      membersWithUnits
+    });
+  } catch (error) {
+    console.error('Error checking players:', error);
+    res.status(500).json({ error: 'Erreur lors de la vérification des joueurs' });
+  }
+});
+
 // Delete a defense
 router.delete('/:id', authenticate, async (req, res) => {
   try {
@@ -237,12 +333,15 @@ router.delete('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Defense not found' });
     }
 
-    // Check if user is the creator, guild leader, or admin
+    // Check if user is the creator, guild leader, sub-leader, or admin
     const guild = await Guild.findByPk(defense.guildId);
     const isCreator = defense.createdById === req.user.id;
     const isLeader = guild.leaderId === req.user.id;
+    const isSubLeader = await GuildSubLeader.findOne({
+      where: { guildId: guild.id, userId: req.user.id }
+    });
 
-    if (!isCreator && !isLeader && req.user.role !== 'admin') {
+    if (!isCreator && !isLeader && !isSubLeader && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'You do not have permission to delete this defense' });
     }
 

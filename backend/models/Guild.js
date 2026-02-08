@@ -31,10 +31,6 @@ const Guild = sequelize.define('Guild', {
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
-  },
-  _id: {
-    type: DataTypes.VIRTUAL,
-    get() { return this.id; }
   }
 }, {
   tableName: 'guilds',

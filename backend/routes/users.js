@@ -164,6 +164,28 @@ router.patch('/me/profile', authenticate, async (req, res) => {
   }
 });
 
+// Update own theme preference
+router.patch('/me/theme', authenticate, async (req, res) => {
+  try {
+    const { theme } = req.body;
+    if (!['light', 'dark'].includes(theme)) {
+      return res.status(400).json({ error: 'Invalid theme. Must be "light" or "dark".' });
+    }
+
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.theme = theme;
+    await user.save();
+
+    res.json({ message: 'Theme updated', theme: user.theme });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Update own password (email provider only)
 router.patch('/me/password', authenticate, async (req, res) => {
   try {
@@ -364,6 +386,11 @@ router.post('/me/sw-data', authenticate, async (req, res) => {
       despairWill: calculateBestRuneSet(allRunes, 10, 15)
     };
 
+    // Extract unit com2us_ids for monster ownership checks
+    const unitIds = jsonData.unit_list
+      ? [...new Set(jsonData.unit_list.map(u => u.unit_master_id))]
+      : [];
+
     user.swData = {
       wizardId: wizardInfo.wizard_id,
       wizardName: wizardInfo.wizard_name,
@@ -371,7 +398,8 @@ router.post('/me/sw-data', authenticate, async (req, res) => {
       lastUpload: new Date(),
       unitCount,
       runeCount,
-      bestRuneSets
+      bestRuneSets,
+      units: unitIds
     };
 
     await user.save();

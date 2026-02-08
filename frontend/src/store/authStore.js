@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import api from '../services/api';
+import { useThemeStore } from './themeStore';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -16,9 +17,14 @@ export const useAuthStore = create((set) => ({
       }
 
       const response = await api.get('/auth/me');
+      const user = response.data.user;
+
+      if (user?.theme) {
+        useThemeStore.getState().applyUserTheme(user.theme);
+      }
 
       set({
-        user: response.data.user,
+        user,
         isAuthenticated: true,
         error: null
       });
@@ -37,6 +43,10 @@ export const useAuthStore = create((set) => ({
       });
 
       localStorage.setItem('token', response.data.token);
+
+      if (response.data.user?.theme) {
+        useThemeStore.getState().applyUserTheme(response.data.user.theme);
+      }
 
       set({
         user: response.data.user,
@@ -65,6 +75,10 @@ export const useAuthStore = create((set) => ({
       });
 
       localStorage.setItem('token', response.data.token);
+
+      if (response.data.user?.theme) {
+        useThemeStore.getState().applyUserTheme(response.data.user.theme);
+      }
 
       set({
         user: response.data.user,

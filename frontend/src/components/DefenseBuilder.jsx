@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal, ConfirmDialog } from './Modal';
 import DefenseDetail from './DefenseDetail';
 import api from '../services/api';
@@ -16,6 +16,7 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
   const [editingDefense, setEditingDefense] = useState(null);
   const [selectedDefense, setSelectedDefense] = useState(null);
   const [defenseSearchQuery, setDefenseSearchQuery] = useState('');
+  const [starFilter, setStarFilter] = useState('all');
   const [openMenuId, setOpenMenuId] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
@@ -23,15 +24,12 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
     defenseName: ''
   });
 
-  // Inventory states
-  const [inventory, setInventory] = useState(null);
-  const [uploadingFile, setUploadingFile] = useState(false);
   const [compatiblePlayers, setCompatiblePlayers] = useState([]);
   const [partialPlayers, setPartialPlayers] = useState([]);
   const [loadingPlayers, setLoadingPlayers] = useState(false);
-  const fileInputRef = useRef(null);
+  const [playerCheckInfo, setPlayerCheckInfo] = useState({ membersWithData: 0, membersWithUnits: 0 });
 
-  const { canManage: canManageInventory, canManageItem: canManageDefense } = usePermissions(guild, user);
+  const { canManageItem: canManageDefense } = usePermissions(guild, user);
 
   const {
     monsterSearch, setMonsterSearch,
@@ -43,7 +41,6 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
   useEffect(() => {
     if (guildId) {
       fetchDefenses();
-      fetchInventory();
     }
   }, [guildId]);
 
@@ -60,66 +57,24 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
 
   // Check compatible players when monsters change
   useEffect(() => {
-    const monsterNames = selectedMonsters.filter(m => m !== null).map(m => m.name);
-    if (monsterNames.length === 3 && inventory) {
-      checkCompatiblePlayers(monsterNames);
+    if (selectedMonsters.every(m => m !== null)) {
+      checkCompatiblePlayers(selectedMonsters);
     } else {
       setCompatiblePlayers([]);
       setPartialPlayers([]);
     }
-  }, [selectedMonsters, inventory]);
+  }, [selectedMonsters]);
 
-  const fetchInventory = async () => {
-    try {
-      const response = await api.get(`/inventory/${guildId}`);
-      setInventory(response.data.inventory);
-    } catch (error) {
-      console.error('Error fetching inventory:', error);
-    }
-  };
-
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    setUploadingFile(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await api.post(`/inventory/upload/${guildId}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      onToast(`${response.data.message} (${response.data.playersCount} joueurs, ${response.data.monstersCount} monstres)`, 'success');
-      fetchInventory();
-    } catch (error) {
-      onToast(error.response?.data?.error || 'Erreur lors de l\'upload', 'error');
-    } finally {
-      setUploadingFile(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  const deleteInventory = async () => {
-    try {
-      await api.delete(`/inventory/${guildId}`);
-      onToast('Inventaire supprimé', 'success');
-      setInventory(null);
-    } catch (error) {
-      onToast(error.response?.data?.error || 'Erreur lors de la suppression', 'error');
-    }
-  };
-
-  const checkCompatiblePlayers = async (monsterNames) => {
+  const checkCompatiblePlayers = async (monsters) => {
     setLoadingPlayers(true);
     try {
-      const response = await api.post(`/inventory/${guildId}/check-monsters`, {
-        monsters: monsterNames
-      });
+      const response = await api.post(`/defenses/guild/${guildId}/check-players`, { monsters });
       setCompatiblePlayers(response.data.compatiblePlayers || []);
       setPartialPlayers(response.data.partialPlayers || []);
+      setPlayerCheckInfo({
+        membersWithData: response.data.membersWithData || 0,
+        membersWithUnits: response.data.membersWithUnits || 0
+      });
     } catch (error) {
       console.error('Error checking compatible players:', error);
     } finally {
@@ -218,8 +173,10 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
         onToast('Défense créée avec succès !', 'success');
       }
 
-      setShowCreateModal(false);
+      setOpenMenuId(null);
       fetchDefenses();
+      // Delay modal close to prevent click-through to "Gérer" buttons
+      requestAnimationFrame(() => setShowCreateModal(false));
     } catch (error) {
       onToast(error.response?.data?.error || 'Erreur lors de la sauvegarde', 'error');
     }
@@ -245,6 +202,13 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
   };
 
   const filteredDefenses = defenses.filter(defense => {
+    // Star filter
+    if (starFilter !== 'all') {
+      const maxStars = Math.max(...defense.monsters.map(m => m.natural_stars));
+      if (starFilter === '4' && maxStars > 4) return false;
+      if (starFilter === '5' && maxStars <= 4) return false;
+    }
+
     if (!defenseSearchQuery.trim()) return true;
 
     const query = defenseSearchQuery.toLowerCase();
@@ -271,51 +235,6 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
         </button>
       </div>
 
-      {/* Inventory Upload Section */}
-      <div className={styles.inventorySection}>
-        <div className={styles.inventoryHeader}>
-          <h4>Inventaire des Monstres</h4>
-          {canManageInventory && (
-            <div className={styles.uploadArea}>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept=".xlsx,.xls,.csv"
-                className={styles.fileInput}
-                id="inventory-upload"
-              />
-              <label htmlFor="inventory-upload">
-                <button
-                  className={styles.btnUpload}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingFile}
-                >
-                  {uploadingFile ? 'Upload en cours...' : (inventory ? 'Mettre a jour' : 'Importer Excel')}
-                </button>
-              </label>
-              {inventory && (
-                <button className={styles.btnDelete} onClick={deleteInventory}>
-                  Supprimer
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-        {inventory ? (
-          <div className={styles.inventoryInfo}>
-            <span>{inventory.playersCount} joueurs</span>
-            <span>{inventory.monstersCount} monstres</span>
-            <span>Fichier: {inventory.fileName}</span>
-            <span>Par: {inventory.uploadedBy}</span>
-          </div>
-        ) : (
-          <p className={styles.noInventory}>
-            Aucun inventaire importe. {canManageInventory ? 'Uploadez un fichier Excel pour voir qui peut faire chaque defense.' : 'Un chef ou sous-chef doit uploader le fichier Excel.'}
-          </p>
-        )}
-      </div>
-
       {defenses.length === 0 ? (
         <div className={styles.emptyState}>
           <p>Aucune défense créée pour le moment.</p>
@@ -325,27 +244,40 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
         </div>
       ) : (
         <>
-          <div className={styles.searchBar}>
-            <input
-              type="text"
-              value={defenseSearchQuery}
-              onChange={(e) => setDefenseSearchQuery(e.target.value)}
-              placeholder="Rechercher par nom de défense ou de monstre..."
-              className={styles.searchInput}
-            />
-            {defenseSearchQuery && (
-              <button
-                className={styles.clearSearch}
-                onClick={() => setDefenseSearchQuery('')}
-              >
-                ×
-              </button>
-            )}
+          <div className={styles.filtersRow}>
+            <div className={styles.searchBar}>
+              <input
+                type="text"
+                value={defenseSearchQuery}
+                onChange={(e) => setDefenseSearchQuery(e.target.value)}
+                placeholder="Rechercher par nom de défense ou de monstre..."
+                className={styles.searchInput}
+              />
+              {defenseSearchQuery && (
+                <button
+                  className={styles.clearSearch}
+                  onClick={() => setDefenseSearchQuery('')}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            <div className={styles.starFilters}>
+              {['all', '4', '5'].map(filter => (
+                <button
+                  key={filter}
+                  className={`${styles.starFilterBtn} ${starFilter === filter ? styles.starFilterActive : ''}`}
+                  onClick={() => setStarFilter(filter)}
+                >
+                  {filter === 'all' ? 'Toutes' : `${filter}★`}
+                </button>
+              ))}
+            </div>
           </div>
 
           {filteredDefenses.length === 0 ? (
             <div className={styles.noResults}>
-              Aucune défense trouvée pour "{defenseSearchQuery}"
+              Aucune défense trouvée{defenseSearchQuery ? ` pour "${defenseSearchQuery}"` : ''}{starFilter !== 'all' ? ` (filtre ${starFilter}★)` : ''}
             </div>
           ) : (
             <div className={styles.defensesList}>
@@ -538,10 +470,12 @@ function DefenseBuilder({ guildId, guild, user, onToast }) {
           {selectedMonsters.every(m => m !== null) && (
             <div className={styles.compatiblePlayersSection}>
               <h5>Joueurs pouvant faire cette defense</h5>
-              {!inventory ? (
-                <p className={styles.noInventory}>Aucun inventaire importe</p>
-              ) : loadingPlayers ? (
+              {loadingPlayers ? (
                 <p className={styles.loadingPlayers}>Recherche des joueurs...</p>
+              ) : playerCheckInfo.membersWithData === 0 ? (
+                <p className={styles.noInventory}>Aucun membre n'a importe son JSON</p>
+              ) : playerCheckInfo.membersWithUnits === 0 ? (
+                <p className={styles.noInventory}>Les membres doivent re-uploader leur JSON pour activer cette fonctionnalite</p>
               ) : (
                 <>
                   {compatiblePlayers.length > 0 ? (

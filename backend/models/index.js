@@ -8,6 +8,8 @@ import Invitation from './Invitation.js';
 import GuildInventory from './GuildInventory.js';
 import Tower from './Tower.js';
 import Monster from './Monster.js';
+import Siege from './Siege.js';
+import WeeklySiegeAvailability from './WeeklySiegeAvailability.js';
 
 // ── Junction Tables ──
 
@@ -26,8 +28,7 @@ const GuildJoinRequest = sequelize.define('GuildJoinRequest', {
   guildId: { type: DataTypes.INTEGER, allowNull: false },
   userId: { type: DataTypes.INTEGER, allowNull: false },
   message: { type: DataTypes.TEXT, defaultValue: '' },
-  requestedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-  _id: { type: DataTypes.VIRTUAL, get() { return this.id; } }
+  requestedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 }, { tableName: 'guild_join_requests', underscored: true, timestamps: false });
 
 const OffenseDefense = sequelize.define('OffenseDefense', {
@@ -40,6 +41,18 @@ const TowerDefense = sequelize.define('TowerDefense', {
   towerId: { type: DataTypes.INTEGER, allowNull: false },
   defenseId: { type: DataTypes.INTEGER, allowNull: false }
 }, { tableName: 'tower_defenses', underscored: true, timestamps: false });
+
+const SiegeRegistration = sequelize.define('SiegeRegistration', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  siegeId: { type: DataTypes.INTEGER, allowNull: false },
+  userId: { type: DataTypes.INTEGER, allowNull: false },
+  status: { type: DataTypes.STRING, defaultValue: 'available', validate: { isIn: [['available', 'unavailable']] } },
+  selected: { type: DataTypes.BOOLEAN, defaultValue: false }
+}, {
+  tableName: 'siege_registrations',
+  underscored: true,
+  indexes: [{ unique: true, fields: ['siege_id', 'user_id'] }]
+});
 
 // ── Associations ──
 
@@ -88,6 +101,20 @@ Tower.hasMany(TowerDefense, { as: 'towerDefenses', foreignKey: 'towerId' });
 TowerDefense.belongsTo(Tower, { foreignKey: 'towerId' });
 TowerDefense.belongsTo(Defense, { as: 'defense', foreignKey: 'defenseId' });
 
+// Siege associations
+Siege.belongsTo(Guild, { foreignKey: 'guildId' });
+Siege.belongsTo(User, { as: 'createdBy', foreignKey: 'createdById' });
+Guild.hasMany(Siege, { foreignKey: 'guildId' });
+Siege.hasMany(SiegeRegistration, { as: 'registrations', foreignKey: 'siegeId' });
+SiegeRegistration.belongsTo(Siege, { foreignKey: 'siegeId' });
+SiegeRegistration.belongsTo(User, { as: 'user', foreignKey: 'userId' });
+
+// Weekly siege availability associations
+WeeklySiegeAvailability.belongsTo(Guild, { foreignKey: 'guildId' });
+WeeklySiegeAvailability.belongsTo(User, { as: 'user', foreignKey: 'userId' });
+Guild.hasMany(WeeklySiegeAvailability, { as: 'weeklyAvailabilities', foreignKey: 'guildId' });
+User.hasMany(WeeklySiegeAvailability, { as: 'weeklyAvailabilities', foreignKey: 'userId' });
+
 export {
   User,
   Guild,
@@ -101,7 +128,10 @@ export {
   GuildSubLeader,
   GuildJoinRequest,
   OffenseDefense,
-  TowerDefense
+  TowerDefense,
+  Siege,
+  SiegeRegistration,
+  WeeklySiegeAvailability
 };
 
 export default sequelize;

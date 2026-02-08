@@ -27,10 +27,6 @@ const GuildInventory = sequelize.define('GuildInventory', {
   monsterColumns: {
     type: DataTypes.JSON,
     defaultValue: []
-  },
-  _id: {
-    type: DataTypes.VIRTUAL,
-    get() { return this.id; }
   }
 }, {
   tableName: 'guild_inventories',

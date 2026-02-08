@@ -173,6 +173,11 @@ router.post('/:invitationId/accept', authenticate, async (req, res) => {
       await GuildMember.create({ guildId: guild.id, userId: req.user.id });
     }
 
+    // Update user's guildId
+    const user = await User.findByPk(req.user.id);
+    user.guildId = guild.id;
+    await user.save();
+
     // Update invitation status
     invitation.status = 'accepted';
     await invitation.save();

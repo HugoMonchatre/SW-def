@@ -18,10 +18,54 @@
   margin: 0;
 }
 
+/* Filters Row */
+.filtersRow {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.starFilters {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.starFilterBtn {
+  padding: 0.6rem 1rem;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.starFilterBtn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.starFilterActive {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.starFilterActive:hover {
+  background: var(--secondary);
+  border-color: var(--secondary);
+  color: white;
+}
+
 /* Search Bar */
 .searchBar {
   position: relative;
-  margin-bottom: 1.5rem;
+  flex: 1;
 }
 
 .searchBar .searchInput {
@@ -117,9 +161,9 @@
 
 .btnManage {
   padding: 0.5rem 1rem;
-  background: var(--primary);
-  color: white;
-  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 2px solid var(--border-color);
   border-radius: 6px;
   font-size: 0.85rem;
   cursor: pointer;
@@ -128,8 +172,9 @@
 }
 
 .btnManage:hover {
-  background: var(--secondary);
-  transform: translateY(-1px);
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.1);
 }
 
 .btnSecondary {

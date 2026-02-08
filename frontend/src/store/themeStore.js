@@ -1,30 +1,47 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import api from '../services/api';
 
-export const useThemeStore = create(
-  persist(
-    (set) => ({
-      isDarkMode: false,
-      toggleTheme: () => set((state) => {
-        const newMode = !state.isDarkMode;
-        // Update document class
-        if (newMode) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
-        return { isDarkMode: newMode };
-      }),
-      initTheme: () => set((state) => {
-        // Apply theme on load
-        if (state.isDarkMode) {
-          document.documentElement.classList.add('dark');
-        }
-        return state;
-      })
-    }),
-    {
-      name: 'theme-storage'
+const applyTheme = (isDark) => {
+  if (isDark) {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+};
+
+export const useThemeStore = create((set, get) => ({
+  isDarkMode: true,
+
+  // Apply theme from user data (called after login/checkAuth)
+  applyUserTheme: (theme) => {
+    const isDark = theme !== 'light';
+    applyTheme(isDark);
+    set({ isDarkMode: isDark });
+  },
+
+  // Toggle theme and sync with server
+  toggleTheme: async () => {
+    const newMode = !get().isDarkMode;
+    applyTheme(newMode);
+    set({ isDarkMode: newMode });
+
+    try {
+      await api.patch('/users/me/theme', { theme: newMode ? 'dark' : 'light' });
+    } catch (error) {
+      console.error('Error saving theme:', error);
     }
-  )
-);
+  },
+
+  // Init theme on page load (before auth, use localStorage fallback)
+  initTheme: () => {
+    const saved = localStorage.getItem('theme');
+    const isDark = saved ? saved === 'dark' : true;
+    applyTheme(isDark);
+    set({ isDarkMode: isDark });
+  }
+}));
+
+// Keep localStorage in sync as fallback for initial load
+useThemeStore.subscribe((state) => {
+  localStorage.setItem('theme', state.isDarkMode ? 'dark' : 'light');
+});

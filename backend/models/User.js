@@ -58,9 +58,10 @@ const User = sequelize.define('User', {
     type: DataTypes.JSON,
     allowNull: true
   },
-  _id: {
-    type: DataTypes.VIRTUAL,
-    get() { return this.id; }
+  theme: {
+    type: DataTypes.STRING,
+    defaultValue: 'dark',
+    validate: { isIn: [['light', 'dark']] }
   }
 }, {
   tableName: 'users',

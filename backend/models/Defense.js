@@ -26,10 +26,6 @@ const Defense = sequelize.define('Defense', {
   position: {
     type: DataTypes.INTEGER,
     defaultValue: 0
-  },
-  _id: {
-    type: DataTypes.VIRTUAL,
-    get() { return this.id; }
   }
 }, {
   tableName: 'defenses',

@@ -1,0 +1,409 @@
+.siegeManager {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid var(--border-color);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.header h3 {
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.headerActions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.loading {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 2rem;
+}
+
+/* Empty state */
+.emptyState {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.emptyState p {
+  margin-bottom: 1rem;
+}
+
+/* Buttons */
+.btnCreate {
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnCreate:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.btnWarning {
+  padding: 0.5rem 1rem;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+}
+
+.btnWarning:hover {
+  background: #d97706;
+}
+
+.btnSecondary {
+  padding: 0.5rem 1rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+}
+
+.btnSecondary:hover {
+  border-color: var(--primary);
+}
+
+.btnDanger {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: #e53e3e;
+  border: 2px solid #e53e3e;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+}
+
+.btnDanger:hover {
+  background: rgba(229, 62, 62, 0.1);
+}
+
+/* Status bar */
+.statusBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.statusBadge {
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.statusBadge.open {
+  background: rgba(72, 187, 120, 0.15);
+  color: #38a169;
+}
+
+.statusBadge.closed {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+}
+
+.statsRow {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.statItem {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.statValue {
+  font-weight: 600;
+  color: #38a169;
+}
+
+.statValueWarn {
+  font-weight: 600;
+  color: #e53e3e;
+}
+
+.statValueSelected {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/* Register section */
+.registerSection {
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.registerLabel {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.registerButtons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btnAvailable {
+  padding: 0.6rem 1.25rem;
+  background: var(--bg-primary);
+  color: #38a169;
+  border: 2px solid #38a169;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnAvailable:hover,
+.btnAvailable.active {
+  background: #38a169;
+  color: white;
+}
+
+.btnUnavailable {
+  padding: 0.6rem 1.25rem;
+  background: var(--bg-primary);
+  color: #e53e3e;
+  border: 2px solid #e53e3e;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnUnavailable:hover,
+.btnUnavailable.active {
+  background: #e53e3e;
+  color: white;
+}
+
+.btnRemoveReg {
+  padding: 0.6rem 1.25rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnRemoveReg:hover {
+  border-color: var(--text-secondary);
+}
+
+/* Members list */
+.membersList {
+  margin-top: 0.5rem;
+}
+
+.membersList h4 {
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+}
+
+.selectionActions {
+  margin-bottom: 0.75rem;
+}
+
+.btnSave {
+  padding: 0.6rem 1.25rem;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+}
+
+.btnSave:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.membersGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.memberRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.memberRow.available {
+  background: rgba(72, 187, 120, 0.05);
+  border-color: rgba(72, 187, 120, 0.2);
+}
+
+.memberRow.unavailable {
+  background: rgba(229, 62, 62, 0.05);
+  border-color: rgba(229, 62, 62, 0.15);
+  opacity: 0.7;
+}
+
+.memberRow.notRegistered {
+  background: var(--bg-secondary);
+  opacity: 0.5;
+}
+
+.memberRow.selected {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.08);
+  opacity: 1;
+}
+
+.memberRow.available:hover {
+  cursor: pointer;
+  border-color: rgba(72, 187, 120, 0.5);
+}
+
+.memberInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.memberAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 0.8rem;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.memberAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.memberName {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.memberStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tagAvailable {
+  padding: 0.2rem 0.6rem;
+  background: rgba(72, 187, 120, 0.15);
+  color: #38a169;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.tagUnavailable {
+  padding: 0.2rem 0.6rem;
+  background: rgba(229, 62, 62, 0.15);
+  color: #e53e3e;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.tagNotRegistered {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.tagSelected {
+  padding: 0.2rem 0.6rem;
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--primary);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.selectCheckbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .statusBar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .headerActions {
+    width: 100%;
+  }
+
+  .headerActions button {
+    flex: 1;
+  }
+
+  .registerButtons {
+    flex-direction: column;
+  }
+
+  .registerButtons button {
+    width: 100%;
+  }
+}

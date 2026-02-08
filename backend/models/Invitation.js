@@ -36,10 +36,6 @@ const Invitation = sequelize.define('Invitation', {
   expiresAt: {
     type: DataTypes.DATE,
     defaultValue: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  },
-  _id: {
-    type: DataTypes.VIRTUAL,
-    get() { return this.id; }
   }
 }, {
   tableName: 'invitations',

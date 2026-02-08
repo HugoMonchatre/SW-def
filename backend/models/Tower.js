@@ -18,10 +18,6 @@ const Tower = sequelize.define('Tower', {
   memo: {
     type: DataTypes.TEXT,
     defaultValue: ''
-  },
-  _id: {
-    type: DataTypes.VIRTUAL,
-    get() { return this.id; }
   }
 }, {
   tableName: 'towers',

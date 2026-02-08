@@ -34,10 +34,6 @@ const Offense = sequelize.define('Offense', {
   votesDown: {
     type: DataTypes.INTEGER,
     defaultValue: 0
-  },
-  _id: {
-    type: DataTypes.VIRTUAL,
-    get() { return this.id; }
   }
 }, {
   tableName: 'offenses',

@@ -9,6 +9,7 @@ import MembersList from '../components/MembersList';
 import AddMemberModal from '../components/AddMemberModal';
 import GuildWarMap from '../components/GuildWarMap';
 import GuildRuneStats from '../components/GuildRuneStats';
+import SiegeManagement from '../components/SiegeManagement';
 import api from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
 import styles from './GuildPage.module.css';
@@ -30,6 +31,7 @@ function GuildPage() {
   const [isGuildCollapsed, setIsGuildCollapsed] = useState(false);
   const [isDefenseCollapsed, setIsDefenseCollapsed] = useState(false);
   const [isMapCollapsed, setIsMapCollapsed] = useState(false);
+  const [isRuneCollapsed, setIsRuneCollapsed] = useState(false);
   const [showAllGuilds, setShowAllGuilds] = useState(false);
   const [viewMode, setViewMode] = useState('guild');
   const [joinRequests, setJoinRequests] = useState([]);
@@ -359,17 +361,17 @@ function GuildPage() {
               <button
                 className={`${styles.viewToggleBtn} ${viewMode === 'runeStats' ? styles.active : ''}`}
                 onClick={() => setViewMode('runeStats')}
-                title="Statistiques Runes"
+                title="Gestion des Inscriptions au Siège"
               >
-                <span className={styles.viewIcon}>📊</span>
+                <span className={styles.viewIcon}>⚔️</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Rune Stats View */}
-        {!showAllGuilds && myGuild && viewMode === 'runeStats' && (
-          <GuildRuneStats guildId={myGuild.id} />
+        {/* Siege Management View (for leaders/sub-leaders) */}
+        {!showAllGuilds && myGuild && viewMode === 'runeStats' && canManageGuild && (
+          <SiegeManagement guildId={myGuild.id} onToast={showToast} />
         )}
 
         {/* No Guild Message */}
@@ -401,98 +403,101 @@ function GuildPage() {
           </div>
         )}
 
-        {/* Collapse Button for Guild */}
+        {/* Sidebar + Content */}
         {!showAllGuilds && myGuild && viewMode === 'guild' && (
-          <button
-            className={`${styles.btnCollapse} ${isGuildCollapsed ? styles.collapsed : ''}`}
-            onClick={() => setIsGuildCollapsed(!isGuildCollapsed)}
-            title={isGuildCollapsed ? 'Afficher la guilde' : 'Réduire la guilde'}
-          >
-            {isGuildCollapsed && myGuild.logo ? (
-              <img src={myGuild.logo} alt={myGuild.name} className={styles.btnCollapseImg} />
-            ) : (
-              isGuildCollapsed ? '↓' : '↑'
-            )}
-          </button>
-        )}
-
-        {/* My Guild Section */}
-        {!showAllGuilds && myGuild && viewMode === 'guild' && (
-          <div className={styles.myGuildWrapper}>
-            <div className={`${styles.myGuild} ${isGuildCollapsed ? styles.guildCollapsed : ''}`}>
-              <GuildHeader
-                guild={myGuild}
-                canManage={canManageGuild}
-                isLeader={isGuildLeader}
-                onAddMember={() => setShowAddMemberModal(true)}
-                onEditGuild={openEditGuildModal}
-                onDeleteGuild={deleteGuild}
-                onLeaveGuild={leaveGuild}
-              />
-
-              {/* Join Requests Section */}
-              {canViewJoinRequests && joinRequests.length > 0 && (
-                <div className={styles.joinRequestsSection}>
-                  <h3>Demandes d'adhésion ({joinRequests.length})</h3>
-                  <div className={styles.joinRequestsList}>
-                    {joinRequests.map(request => (
-                      <JoinRequestCard
-                        key={request.user.id}
-                        request={request}
-                        onAccept={acceptJoinRequest}
-                        onReject={rejectJoinRequest}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <MembersList
-                guild={myGuild}
-                canManage={canManageGuild}
-                canPromote={canPromoteMembers}
-                onPromote={promoteToSubLeader}
-                onDemote={demoteSubLeader}
-                onRemove={removeMember}
-              />
+          <>
+            {/* Sidebar with collapse buttons */}
+            <div className={styles.sidebar}>
+              <button
+                className={`${styles.sidebarBtn} ${!isGuildCollapsed ? styles.sidebarBtnActive : ''}`}
+                onClick={() => setIsGuildCollapsed(!isGuildCollapsed)}
+                title={isGuildCollapsed ? 'Afficher la guilde' : 'Réduire la guilde'}
+              >
+                {myGuild.logo ? (
+                  <img src={myGuild.logo} alt={myGuild.name} className={styles.sidebarBtnImg} />
+                ) : (
+                  <span className={styles.sidebarBtnIcon}>🏰</span>
+                )}
+              </button>
+              <button
+                className={`${styles.sidebarBtn} ${!isDefenseCollapsed ? styles.sidebarBtnActive : ''}`}
+                onClick={() => setIsDefenseCollapsed(!isDefenseCollapsed)}
+                title={isDefenseCollapsed ? 'Afficher les défenses' : 'Réduire les défenses'}
+              >
+                <span className={styles.sidebarBtnIcon}>🛡️</span>
+              </button>
+              <button
+                className={`${styles.sidebarBtn} ${!isMapCollapsed ? styles.sidebarBtnActive : ''}`}
+                onClick={() => setIsMapCollapsed(!isMapCollapsed)}
+                title={isMapCollapsed ? 'Afficher la carte' : 'Réduire la carte'}
+              >
+                <span className={styles.sidebarBtnIcon}>🗺️</span>
+              </button>
+              <button
+                className={`${styles.sidebarBtn} ${!isRuneCollapsed ? styles.sidebarBtnActive : ''}`}
+                onClick={() => setIsRuneCollapsed(!isRuneCollapsed)}
+                title={isRuneCollapsed ? 'Afficher les statistiques de runes' : 'Réduire les statistiques de runes'}
+              >
+                <span className={styles.sidebarBtnIcon}>📊</span>
+              </button>
             </div>
-          </div>
-        )}
 
-        {/* Collapse Button for Defense */}
-        {!showAllGuilds && myGuild && viewMode === 'guild' && (
-          <button
-            className={`${styles.btnCollapse} ${styles.btnCollapseDefense} ${isDefenseCollapsed ? styles.collapsed : ''}`}
-            onClick={() => setIsDefenseCollapsed(!isDefenseCollapsed)}
-            title={isDefenseCollapsed ? 'Afficher les défenses' : 'Réduire les défenses'}
-          >
-            {isDefenseCollapsed ? '🛡️' : '↑'}
-          </button>
-        )}
+            {/* My Guild Section */}
+            <div className={styles.myGuildWrapper}>
+              <div className={`${styles.myGuild} ${isGuildCollapsed ? styles.guildCollapsed : ''}`}>
+                <GuildHeader
+                  guild={myGuild}
+                  canManage={canManageGuild}
+                  isLeader={isGuildLeader}
+                  onAddMember={() => setShowAddMemberModal(true)}
+                  onEditGuild={openEditGuildModal}
+                  onDeleteGuild={deleteGuild}
+                  onLeaveGuild={leaveGuild}
+                />
 
-        {/* Defense Builder */}
-        {!showAllGuilds && myGuild && viewMode === 'guild' && (
-          <div className={`${styles.defenseWrapper} ${isDefenseCollapsed ? styles.defenseCollapsed : ''}`}>
-            <DefenseBuilder guildId={myGuild.id} guild={myGuild} user={user} onToast={showToast} />
-          </div>
-        )}
+                {/* Join Requests Section */}
+                {canViewJoinRequests && joinRequests.length > 0 && (
+                  <div className={styles.joinRequestsSection}>
+                    <h3>Demandes d'adhésion ({joinRequests.length})</h3>
+                    <div className={styles.joinRequestsList}>
+                      {joinRequests.map(request => (
+                        <JoinRequestCard
+                          key={request.user.id}
+                          request={request}
+                          onAccept={acceptJoinRequest}
+                          onReject={rejectJoinRequest}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-        {/* Collapse Button for Map */}
-        {!showAllGuilds && myGuild && viewMode === 'guild' && (
-          <button
-            className={`${styles.btnCollapse} ${styles.btnCollapseMap} ${isMapCollapsed ? styles.collapsed : ''}`}
-            onClick={() => setIsMapCollapsed(!isMapCollapsed)}
-            title={isMapCollapsed ? 'Afficher la carte' : 'Réduire la carte'}
-          >
-            {isMapCollapsed ? '🗺️' : '↑'}
-          </button>
-        )}
+                <MembersList
+                  guild={myGuild}
+                  canManage={canManageGuild}
+                  canPromote={canPromoteMembers}
+                  onPromote={promoteToSubLeader}
+                  onDemote={demoteSubLeader}
+                  onRemove={removeMember}
+                />
+              </div>
+            </div>
 
-        {/* Guild War Map */}
-        {!showAllGuilds && myGuild && viewMode === 'guild' && (
-          <div className={`${styles.mapWrapper} ${isMapCollapsed ? styles.mapCollapsed : ''}`}>
-            <GuildWarMap guild={myGuild} user={user} members={myGuild.members} onToast={showToast} />
-          </div>
+            {/* Defense Builder */}
+            <div className={`${styles.defenseWrapper} ${isDefenseCollapsed ? styles.defenseCollapsed : ''}`}>
+              <DefenseBuilder guildId={myGuild.id} guild={myGuild} user={user} onToast={showToast} />
+            </div>
+
+            {/* Guild War Map */}
+            <div className={`${styles.mapWrapper} ${isMapCollapsed ? styles.mapCollapsed : ''}`}>
+              <GuildWarMap guild={myGuild} user={user} members={myGuild.members} onToast={showToast} />
+            </div>
+
+            {/* Guild Rune Stats */}
+            <div className={`${styles.runeWrapper} ${isRuneCollapsed ? styles.runeCollapsed : ''}`}>
+              <GuildRuneStats guildId={myGuild.id} />
+            </div>
+          </>
         )}
 
         {/* All Guilds Section */}
