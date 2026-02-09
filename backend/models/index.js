@@ -10,6 +10,7 @@ import Tower from './Tower.js';
 import Monster from './Monster.js';
 import Siege from './Siege.js';
 import WeeklySiegeAvailability from './WeeklySiegeAvailability.js';
+import Notification from './Notification.js';
 
 // ── Junction Tables ──
 
@@ -115,6 +116,10 @@ WeeklySiegeAvailability.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 Guild.hasMany(WeeklySiegeAvailability, { as: 'weeklyAvailabilities', foreignKey: 'guildId' });
 User.hasMany(WeeklySiegeAvailability, { as: 'weeklyAvailabilities', foreignKey: 'userId' });
 
+// Notification associations
+Notification.belongsTo(User, { as: 'user', foreignKey: 'userId' });
+User.hasMany(Notification, { as: 'notifications', foreignKey: 'userId' });
+
 export {
   User,
   Guild,
@@ -131,7 +136,8 @@ export {
   TowerDefense,
   Siege,
   SiegeRegistration,
-  WeeklySiegeAvailability
+  WeeklySiegeAvailability,
+  Notification
 };
 
 export default sequelize;

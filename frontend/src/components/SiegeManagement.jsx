@@ -82,7 +82,12 @@ function SiegeManagement({ guildId, onToast }) {
         })
       );
 
-      onToast?.('Sélections enregistrées', 'success');
+      // Finalize selections and send notifications
+      await api.post(`/sieges/guild/${guildId}/finalize-selections`, {
+        weekStartDate
+      });
+
+      onToast?.('Sélections enregistrées et notifications envoyées', 'success');
       await fetchAvailabilities();
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);

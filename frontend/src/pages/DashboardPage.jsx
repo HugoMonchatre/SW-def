@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import api from '../services/api';
 import InvitationCard from '../components/InvitationCard';
 import WeeklySiegeWidget from '../components/WeeklySiegeWidget';
+import NotificationList from '../components/NotificationList';
 import { Modal } from '../components/Modal';
 import styles from './DashboardPage.module.css';
 
@@ -190,10 +191,13 @@ function DashboardPage() {
     <div className={styles.dashboardPage}>
       <div className={styles.container}>
 
-        {/* Full-width: invitations */}
+        {/* 1. Notifications */}
+        <NotificationList />
+
+        {/* 2. Invitations */}
         {invitations.length > 0 && (
           <div className={styles.invitationsSection}>
-            <h2>Invitations en attente ({invitations.length})</h2>
+            <h2>📨 Invitations en attente ({invitations.length})</h2>
             <div className={styles.invitationsList}>
               {invitations.map((invitation) => (
                 <InvitationCard
@@ -206,10 +210,7 @@ function DashboardPage() {
           </div>
         )}
 
-        {/* Weekly siege availability widget */}
-        {user?.guildId && <WeeklySiegeWidget />}
-
-        {/* Side by side: profil (30%) + données SW (70%) */}
+        {/* 3. Side by side: profil (30%) + données SW (70%) */}
         <div className={styles.mainRow}>
           <div className={styles.profileSection}>
             <button onClick={openProfileModal} className={styles.btnGear} title="Modifier le profil">
@@ -321,6 +322,9 @@ function DashboardPage() {
             )}
           </div>
         </div>
+
+        {/* 4. Weekly siege availability widget */}
+        {user?.guildId && <WeeklySiegeWidget />}
 
       </div>
 

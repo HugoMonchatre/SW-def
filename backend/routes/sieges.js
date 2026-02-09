@@ -1,5 +1,5 @@
 import express from 'express';
-import { Guild, User, WeeklySiegeAvailability, GuildMember, GuildSubLeader } from '../models/index.js';
+import { Guild, User, WeeklySiegeAvailability, GuildMember, GuildSubLeader, Notification } from '../models/index.js';
 import { authenticate, parseId } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -255,6 +255,92 @@ router.patch('/weekly-availabilities/:id/select', authenticate, async (req, res)
   } catch (error) {
     console.error('Error updating selection:', error);
     res.status(500).json({ error: 'Erreur lors de la mise à jour de la sélection' });
+  }
+});
+
+// Finalize selections and send notifications
+router.post('/guild/:guildId/finalize-selections', authenticate, async (req, res) => {
+  try {
+    const guildId = parseId(req.params.guildId);
+    if (guildId === null) return res.status(400).json({ error: 'Invalid guild ID' });
+
+    const guild = await Guild.findByPk(guildId);
+    if (!guild) return res.status(404).json({ error: 'Guilde non trouvée' });
+
+    if (!(await canManage(guild, req.user))) {
+      return res.status(403).json({ error: 'Non autorisé' });
+    }
+
+    const { weekStartDate } = req.body;
+    const targetWeek = weekStartDate || getSaturdayOfWeek();
+
+    // Get all availabilities for the week
+    const availabilities = await WeeklySiegeAvailability.findAll({
+      where: { guildId, weekStartDate: targetWeek }
+    });
+
+    // Calculate Monday and Thursday dates for messages
+    const saturdayDate = new Date(targetWeek);
+    const mondayDate = new Date(saturdayDate);
+    mondayDate.setDate(saturdayDate.getDate() + 2);
+    const thursdayDate = new Date(saturdayDate);
+    thursdayDate.setDate(saturdayDate.getDate() + 5);
+
+    const formatDate = (d) => d.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long'
+    });
+
+    const mondayStr = formatDate(mondayDate);
+    const thursdayStr = formatDate(thursdayDate);
+
+    // Create notifications for each user
+    const notifications = [];
+    for (const availability of availabilities) {
+      // Monday notification
+      if (availability.mondayAvailable === true) {
+        const message = availability.mondaySelected
+          ? `🎉 Vous avez été sélectionné(e) pour le siège de ${mondayStr} !`
+          : `Vous n'avez pas été sélectionné(e) pour le siège de ${mondayStr}.`;
+
+        notifications.push({
+          userId: availability.userId,
+          type: 'siege_selection',
+          message,
+          relatedId: availability.id,
+          isRead: false
+        });
+      }
+
+      // Thursday notification
+      if (availability.thursdayAvailable === true) {
+        const message = availability.thursdaySelected
+          ? `🎉 Vous avez été sélectionné(e) pour le siège de ${thursdayStr} !`
+          : `Vous n'avez pas été sélectionné(e) pour le siège de ${thursdayStr}.`;
+
+        notifications.push({
+          userId: availability.userId,
+          type: 'siege_selection',
+          message,
+          relatedId: availability.id,
+          isRead: false
+        });
+      }
+    }
+
+    // Bulk create notifications
+    if (notifications.length > 0) {
+      await Notification.bulkCreate(notifications);
+    }
+
+    res.json({
+      message: 'Sélections finalisées et notifications envoyées',
+      notificationsSent: notifications.length
+    });
+  } catch (error) {
+    console.error('Error finalizing selections:', error);
+    res.status(500).json({ error: 'Erreur lors de la finalisation des sélections' });
   }
 });
 

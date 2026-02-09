@@ -17,6 +17,7 @@ import offenseRoutes from './routes/offenses.js';
 import inventoryRoutes from './routes/inventory.js';
 import towerRoutes from './routes/towers.js';
 import siegeRoutes from './routes/sieges.js';
+import notificationRoutes from './routes/notifications.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -46,7 +47,9 @@ app.use(session({
 sequelize.authenticate()
   .then(() => {
     console.log('Connected to database');
-    return sequelize.sync({ alter: true });
+    // Use sync without alter to avoid modifying existing tables
+    // This only creates tables that don't exist
+    return sequelize.sync();
   })
   .then(() => {
     console.log('Database synced');
@@ -63,6 +66,7 @@ app.use('/api/offenses', offenseRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/towers', towerRoutes);
 app.use('/api/sieges', siegeRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

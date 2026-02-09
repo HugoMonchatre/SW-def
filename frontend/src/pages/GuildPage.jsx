@@ -348,8 +348,8 @@ function GuildPage() {
               </button>
             )}
           </div>
-          {/* View Mode Toggle - Right side */}
-          {myGuild && !showAllGuilds && (
+          {/* View Mode Toggle - Right side (only for leaders/sub-leaders) */}
+          {myGuild && !showAllGuilds && canPromoteMembers && (
             <div className={styles.viewToggle}>
               <button
                 className={`${styles.viewToggleBtn} ${viewMode === 'guild' ? styles.active : ''}`}
@@ -370,7 +370,7 @@ function GuildPage() {
         </div>
 
         {/* Siege Management View (for leaders/sub-leaders) */}
-        {!showAllGuilds && myGuild && viewMode === 'runeStats' && canManageGuild && (
+        {!showAllGuilds && myGuild && viewMode === 'runeStats' && canPromoteMembers && (
           <SiegeManagement guildId={myGuild.id} onToast={showToast} />
         )}
 

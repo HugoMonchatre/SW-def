@@ -1,12 +1,28 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
+import { useNotificationStore } from '../store/notificationStore';
 import styles from './Navbar.module.css';
 
 function Navbar() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const { isDarkMode, toggleTheme } = useThemeStore();
+  const { unreadCount, fetchUnreadCount } = useNotificationStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    fetchUnreadCount();
+
+    // Poll every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, fetchUnreadCount]);
 
   const handleLogout = async () => {
     await logout();
@@ -35,7 +51,12 @@ function Navbar() {
             </>
           ) : (
             <>
-              <Link to="/dashboard" className={styles.link}>Dashboard</Link>
+              <Link to="/dashboard" className={styles.link}>
+                Dashboard
+                {unreadCount > 0 && (
+                  <span className={styles.badge}>{unreadCount}</span>
+                )}
+              </Link>
               <Link to="/guilds" className={styles.link}>Guilde</Link>
               {user?.role === 'admin' && (
                 <Link to="/admin" className={styles.link}>Admin</Link>
