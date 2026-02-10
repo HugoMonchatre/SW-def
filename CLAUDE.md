@@ -39,7 +39,10 @@ SW-def/
 │   │   ├── Monster.js       # SWARFarm monster data
 │   │   ├── Tower.js
 │   │   ├── Invitation.js
-│   │   └── GuildInventory.js
+│   │   ├── GuildInventory.js
+│   │   ├── Siege.js
+│   │   ├── WeeklySiegeAvailability.js  # Weekly siege availability tracking
+│   │   └── Notification.js  # In-app notification system
 │   ├── routes/
 │   │   ├── auth.js          # Login, register, OAuth callbacks
 │   │   ├── users.js         # User management, theme preference
@@ -48,10 +51,13 @@ SW-def/
 │   │   ├── offenses.js      # Offense CRUD, link offenses to defenses
 │   │   ├── towers.js        # Tower defense assignment, 4-star restrictions
 │   │   ├── inventory.js     # Excel upload for guild monster inventory
-│   │   └── invitations.js   # Guild invitation system
+│   │   ├── invitations.js   # Guild invitation system
+│   │   ├── sieges.js         # Weekly siege availability & selection routes
+│   │   └── notifications.js  # Notification CRUD & unread count
 │   ├── scripts/
 │   │   ├── initAdmin.js     # Create/update admin account
-│   │   └── seedMonsters.js  # Import monsters from bestiary.json
+│   │   ├── seedMonsters.js  # Import monsters from bestiary.json
+│   │   └── recreateWeeklySiegeTable.js  # Fix table schema migration
 │   ├── data/
 │   │   └── bestiary.json    # SWARFarm monster database
 │   └── server.js            # Express server entry point
@@ -59,7 +65,7 @@ SW-def/
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── Modal.jsx / .module.css         # Modal, Toast, ConfirmDialog
-│   │   │   ├── Navbar.jsx / .module.css        # Navigation bar with theme toggle
+│   │   │   ├── Navbar.jsx / .module.css        # Navigation bar with theme toggle & notification badge
 │   │   │   ├── DefenseBuilder.jsx / .module.css # Defense creation & management
 │   │   │   ├── DefenseDetail.jsx / .module.css  # Defense detail with offenses
 │   │   │   ├── GuildCard.jsx / .module.css      # Guild display card
@@ -72,6 +78,9 @@ SW-def/
 │   │   │   ├── AddMemberModal.jsx / .module.css # Add member modal
 │   │   │   ├── InvitationCard.jsx / .module.css # Guild invitation card
 │   │   │   ├── JoinRequestCard.jsx / .module.css # Join request card
+│   │   │   ├── WeeklySiegeWidget.jsx / .module.css # Member weekly availability widget
+│   │   │   ├── SiegeManagement.jsx / .module.css   # Leader siege selection interface
+│   │   │   ├── NotificationList.jsx / .module.css  # In-app notification display
 │   │   │   └── guildWarMapConfig.js             # War map tower positions
 │   │   ├── pages/
 │   │   │   ├── HomePage.jsx / .module.css
@@ -81,7 +90,8 @@ SW-def/
 │   │   │   └── AdminPage.jsx / .module.css
 │   │   ├── store/
 │   │   │   ├── authStore.js   # Auth state (Zustand), syncs theme on login
-│   │   │   └── themeStore.js  # Theme state, persists to server + localStorage
+│   │   │   ├── themeStore.js  # Theme state, persists to server + localStorage
+│   │   │   └── notificationStore.js  # Notification unread count (shared Navbar/Dashboard)
 │   │   ├── hooks/
 │   │   │   ├── useMonsterSearch.js  # Debounced monster search hook
 │   │   │   └── usePermissions.js    # Guild permission checks (canManage, canManageItem)
@@ -186,6 +196,33 @@ All models use `underscored: true` (camelCase attributes map to snake_case colum
 // MAX_DEFENSES_PER_TOWER = 5, towers "2", "7", "11" are 4-star max
 ```
 
+### WeeklySiegeAvailability
+```javascript
+{
+  id: INTEGER (PK, auto-increment),
+  guildId: INTEGER (FK -> Guild),
+  userId: INTEGER (FK -> User),
+  weekStartDate: DATEONLY (Saturday of the week),
+  mondayAvailable: BOOLEAN (null = not answered),
+  thursdayAvailable: BOOLEAN (null = not answered),
+  mondaySelected: BOOLEAN (default: false, set by leaders),
+  thursdaySelected: BOOLEAN (default: false, set by leaders)
+}
+// Composite unique index: (guild_id, user_id, week_start_date)
+```
+
+### Notification
+```javascript
+{
+  id: INTEGER (PK, auto-increment),
+  userId: INTEGER (FK -> User),
+  type: ENUM('siege_selection', 'invitation', 'general'),
+  message: TEXT,
+  relatedId: INTEGER (nullable, FK to related entity),
+  isRead: BOOLEAN (default: false)
+}
+```
+
 ### Junction Tables
 - **GuildMember** (guildId, userId) - composite PK
 - **GuildSubLeader** (guildId, userId) - composite PK
@@ -197,9 +234,9 @@ All models use `underscored: true` (camelCase attributes map to snake_case colum
 
 | Role | Permissions |
 |------|-------------|
-| `user` | View guilds, request to join, create defenses/offenses in own guild |
-| `guild_leader` | Create guild, manage members, promote sub-leaders (max 4) |
-| `sub_leader` | Manage defenses, upload inventory, manage tower assignments |
+| `user` | View guilds, request to join, create defenses/offenses in own guild, set siege availability |
+| `guild_leader` | Create guild, manage members, promote sub-leaders (max 4), manage siege selections |
+| `sub_leader` | Manage defenses, upload inventory, manage tower assignments, manage siege selections |
 | `admin` | All permissions across all guilds |
 
 ## Key Features
@@ -230,6 +267,22 @@ All models use `underscored: true` (camelCase attributes map to snake_case colum
 - Check which players can make a specific defense
 - Partial match display (2/3 monsters)
 
+### Weekly Siege Availability System
+- Weekly polling starts every Saturday, members indicate availability for Monday & Thursday sieges
+- Deadlines: Sunday 12h for Monday siege, Wednesday 12h for Thursday siege
+- Leaders/sub-leaders select up to 25 participants per siege via SiegeManagement component
+- After selection, notifications are automatically created for all members who answered
+- View toggle (🏰/⚔️) only visible to leaders/sub-leaders, not regular members
+- Dashboard widget (WeeklySiegeWidget) auto-hides when both answers are given
+
+### Notification System
+- In-app notifications with types: siege_selection, invitation, general
+- Auto-created when leaders finalize siege selections (selected/not selected messages)
+- NotificationList component on dashboard with mark-as-read and mark-all-as-read
+- Red badge on "Dashboard" navbar link showing unread count (polls every 30s)
+- Shared state via Zustand notificationStore for real-time badge updates
+- Dashboard order: Notifications → Invitations → Profile + SW Data → Siege Availability
+
 ### Theme System
 - Dark/light mode toggle
 - Per-user persistence (saved to database via `PATCH /users/me/theme`)
@@ -240,6 +293,12 @@ All models use `underscored: true` (camelCase attributes map to snake_case colum
 **NEVER** define a `_id` virtual field on a Sequelize model with `underscored: true`.
 Sequelize's `snakeCase('_id')` resolves to `'id'`, conflicting with the real `id` column.
 The `toJSON()` methods already handle `_id` manually (`values._id = values.id`).
+
+## Important: Sequelize sync mode
+`sequelize.sync()` is used **without** `{ alter: true }` to avoid Sequelize incorrectly adding
+UNIQUE constraints on foreign key columns in SQLite. If a new model is added, the table will be
+created automatically. For schema changes on existing tables, use migration scripts
+(see `backend/scripts/recreateWeeklySiegeTable.js` as example).
 
 ## Common Commands
 
