@@ -5,10 +5,11 @@ function GuildCard({
   isPending = false,
   canJoin = false,
   onJoinRequest,
-  onCancelRequest
+  onCancelRequest,
+  onClick
 }) {
   return (
-    <div className={styles.guildCard}>
+    <div className={styles.guildCard} onClick={() => onClick?.(guild.id)} style={onClick ? { cursor: 'pointer' } : {}}>
       {guild.logo && (
         <div className={styles.guildCardLogo}>
           <img src={guild.logo} alt={guild.name} />
@@ -29,7 +30,7 @@ function GuildCard({
         </span>
       </div>
       {canJoin && guild.members.length < guild.maxMembers && (
-        <div className={styles.guildCardActions}>
+        <div className={styles.guildCardActions} onClick={(e) => e.stopPropagation()}>
           {isPending ? (
             <button
               className={styles.btnPending}

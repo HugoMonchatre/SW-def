@@ -97,12 +97,12 @@ function SiegeManagement({ guildId, onToast }) {
 
   const formatWeekRange = (dateString) => {
     if (!dateString) return '';
-    const saturday = new Date(dateString);
-    const friday = new Date(saturday);
-    friday.setDate(saturday.getDate() + 6);
+    const friday = new Date(dateString);
+    const thursday = new Date(friday);
+    thursday.setDate(friday.getDate() + 6);
 
     const formatDate = (d) => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-    return `${formatDate(saturday)} - ${formatDate(friday)}`;
+    return `${formatDate(friday)} - ${formatDate(thursday)}`;
   };
 
   if (loading) {

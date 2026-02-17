@@ -6,28 +6,28 @@ const router = express.Router();
 
 // ── Helpers ──
 
-// Get Saturday of the current week (week starts on Saturday)
-function getSaturdayOfWeek(date = new Date()) {
+// Get Friday of the current week (polls launch on Friday for next week's sieges)
+function getFridayOfWeek(date = new Date()) {
   const d = new Date(date);
-  const day = d.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+  const day = d.getDay(); // 0=Sunday, 1=Monday, ..., 5=Friday, 6=Saturday
 
-  // Calculate how many days to go back to reach Saturday
-  const daysToGoBack = day === 6 ? 0 : (day + 1);
-  const saturday = new Date(d);
-  saturday.setDate(d.getDate() - daysToGoBack);
-  saturday.setHours(0, 0, 0, 0);
-  return saturday.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+  // Calculate how many days to go back to reach Friday
+  const daysToGoBack = (day - 5 + 7) % 7;
+  const friday = new Date(d);
+  friday.setDate(d.getDate() - daysToGoBack);
+  friday.setHours(0, 0, 0, 0);
+  return friday.toISOString().split('T')[0]; // Format: YYYY-MM-DD
 }
 
-// Get next Saturday (for showing upcoming week)
-function getNextSaturday() {
+// Get next Friday (for showing upcoming week)
+function getNextFriday() {
   const today = new Date();
   const day = today.getDay();
-  const daysUntilSaturday = day === 6 ? 7 : (6 - day);
-  const nextSaturday = new Date(today);
-  nextSaturday.setDate(today.getDate() + daysUntilSaturday);
-  nextSaturday.setHours(0, 0, 0, 0);
-  return nextSaturday.toISOString().split('T')[0];
+  const daysUntilFriday = day === 5 ? 7 : ((5 - day + 7) % 7);
+  const nextFriday = new Date(today);
+  nextFriday.setDate(today.getDate() + daysUntilFriday);
+  nextFriday.setHours(0, 0, 0, 0);
+  return nextFriday.toISOString().split('T')[0];
 }
 
 async function isGuildMember(guild, userId) {
@@ -56,24 +56,24 @@ router.get('/my-weekly-availability', authenticate, async (req, res) => {
       return res.json({ currentWeek: null, nextWeek: null });
     }
 
-    const currentSaturday = getSaturdayOfWeek();
-    const nextSaturday = getNextSaturday();
+    const currentFriday = getFridayOfWeek();
+    const nextFriday = getNextFriday();
 
     const [currentWeek, nextWeek] = await Promise.all([
       WeeklySiegeAvailability.findOne({
-        where: { guildId: req.user.guildId, userId: req.user.id, weekStartDate: currentSaturday }
+        where: { guildId: req.user.guildId, userId: req.user.id, weekStartDate: currentFriday }
       }),
       WeeklySiegeAvailability.findOne({
-        where: { guildId: req.user.guildId, userId: req.user.id, weekStartDate: nextSaturday }
+        where: { guildId: req.user.guildId, userId: req.user.id, weekStartDate: nextFriday }
       })
     ]);
 
     // Calculate Monday and Thursday dates for current week
-    const saturdayDate = new Date(currentSaturday);
-    const mondayDate = new Date(saturdayDate);
-    mondayDate.setDate(saturdayDate.getDate() + 2); // Saturday + 2 = Monday
-    const thursdayDate = new Date(saturdayDate);
-    thursdayDate.setDate(saturdayDate.getDate() + 5); // Saturday + 5 = Thursday
+    const fridayDate = new Date(currentFriday);
+    const mondayDate = new Date(fridayDate);
+    mondayDate.setDate(fridayDate.getDate() + 3); // Friday + 3 = Monday
+    const thursdayDate = new Date(fridayDate);
+    thursdayDate.setDate(fridayDate.getDate() + 6); // Friday + 6 = Thursday
 
     // Check if we can still answer (12h before siege = noon of previous day)
     const now = new Date();
@@ -88,8 +88,8 @@ router.get('/my-weekly-availability', authenticate, async (req, res) => {
     const canAnswerThursday = now < wednesdayNoon;
 
     res.json({
-      currentWeek: currentWeek || { weekStartDate: currentSaturday, mondayAvailable: null, thursdayAvailable: null },
-      nextWeek: nextWeek || { weekStartDate: nextSaturday, mondayAvailable: null, thursdayAvailable: null },
+      currentWeek: currentWeek || { weekStartDate: currentFriday, mondayAvailable: null, thursdayAvailable: null },
+      nextWeek: nextWeek || { weekStartDate: nextFriday, mondayAvailable: null, thursdayAvailable: null },
       mondayDate: mondayDate.toISOString().split('T')[0],
       thursdayDate: thursdayDate.toISOString().split('T')[0],
       canAnswerMonday,
@@ -119,11 +119,11 @@ router.post('/weekly-availability', authenticate, async (req, res) => {
     }
 
     // Calculate Monday and Thursday dates
-    const saturdayDate = new Date(weekStartDate);
-    const mondayDate = new Date(saturdayDate);
-    mondayDate.setDate(saturdayDate.getDate() + 2);
-    const thursdayDate = new Date(saturdayDate);
-    thursdayDate.setDate(saturdayDate.getDate() + 5);
+    const fridayDate = new Date(weekStartDate);
+    const mondayDate = new Date(fridayDate);
+    mondayDate.setDate(fridayDate.getDate() + 3); // Friday + 3 = Monday
+    const thursdayDate = new Date(fridayDate);
+    thursdayDate.setDate(fridayDate.getDate() + 6); // Friday + 6 = Thursday
 
     // Check if deadlines passed (12h before = noon of previous day)
     const now = new Date();
@@ -177,7 +177,7 @@ router.get('/guild/:guildId/weekly-availabilities', authenticate, async (req, re
     }
 
     const { weekStartDate } = req.query;
-    const targetWeek = weekStartDate || getSaturdayOfWeek();
+    const targetWeek = weekStartDate || getFridayOfWeek();
 
     const availabilities = await WeeklySiegeAvailability.findAll({
       where: { guildId, weekStartDate: targetWeek },
@@ -272,7 +272,7 @@ router.post('/guild/:guildId/finalize-selections', authenticate, async (req, res
     }
 
     const { weekStartDate } = req.body;
-    const targetWeek = weekStartDate || getSaturdayOfWeek();
+    const targetWeek = weekStartDate || getFridayOfWeek();
 
     // Get all availabilities for the week
     const availabilities = await WeeklySiegeAvailability.findAll({
@@ -280,11 +280,11 @@ router.post('/guild/:guildId/finalize-selections', authenticate, async (req, res
     });
 
     // Calculate Monday and Thursday dates for messages
-    const saturdayDate = new Date(targetWeek);
-    const mondayDate = new Date(saturdayDate);
-    mondayDate.setDate(saturdayDate.getDate() + 2);
-    const thursdayDate = new Date(saturdayDate);
-    thursdayDate.setDate(saturdayDate.getDate() + 5);
+    const fridayDate = new Date(targetWeek);
+    const mondayDate = new Date(fridayDate);
+    mondayDate.setDate(fridayDate.getDate() + 3); // Friday + 3 = Monday
+    const thursdayDate = new Date(fridayDate);
+    thursdayDate.setDate(fridayDate.getDate() + 6); // Friday + 6 = Thursday
 
     const formatDate = (d) => d.toLocaleDateString('fr-FR', {
       weekday: 'long',

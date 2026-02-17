@@ -6,10 +6,12 @@ import GuildCard from '../components/GuildCard';
 import GuildHeader from '../components/GuildHeader';
 import JoinRequestCard from '../components/JoinRequestCard';
 import MembersList from '../components/MembersList';
+import MemberCard from '../components/MemberCard';
 import AddMemberModal from '../components/AddMemberModal';
 import GuildWarMap from '../components/GuildWarMap';
 import GuildRuneStats from '../components/GuildRuneStats';
 import SiegeManagement from '../components/SiegeManagement';
+import RuneEfficiency from '../components/RuneEfficiency';
 import api from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
 import styles from './GuildPage.module.css';
@@ -36,6 +38,8 @@ function GuildPage() {
   const [viewMode, setViewMode] = useState('guild');
   const [joinRequests, setJoinRequests] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [guildSearch, setGuildSearch] = useState('');
+  const [selectedGuildProfile, setSelectedGuildProfile] = useState(null);
 
   // Toast state
   const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
@@ -73,6 +77,16 @@ function GuildPage() {
       setPendingRequests(pending);
     }
   }, [guilds, myGuild, user]);
+
+  const viewGuildProfile = async (guildId) => {
+    try {
+      const response = await api.get(`/guilds/${guildId}`);
+      setSelectedGuildProfile(response.data.guild);
+    } catch (error) {
+      console.error('Erreur lors du chargement de la guilde:', error);
+      showToast('Erreur lors du chargement de la guilde', 'error');
+    }
+  };
 
   const showToast = (message, type = 'success') => {
     setToast({ isVisible: true, message, type });
@@ -359,19 +373,31 @@ function GuildPage() {
                 <span className={styles.viewIcon}>🏰</span>
               </button>
               <button
-                className={`${styles.viewToggleBtn} ${viewMode === 'runeStats' ? styles.active : ''}`}
-                onClick={() => setViewMode('runeStats')}
+                className={`${styles.viewToggleBtn} ${viewMode === 'siege' ? styles.active : ''}`}
+                onClick={() => setViewMode('siege')}
                 title="Gestion des Inscriptions au Siège"
               >
                 <span className={styles.viewIcon}>⚔️</span>
+              </button>
+              <button
+                className={`${styles.viewToggleBtn} ${viewMode === 'runeEfficiency' ? styles.active : ''}`}
+                onClick={() => setViewMode('runeEfficiency')}
+                title="Efficacité des Runes"
+              >
+                <span className={styles.viewIcon}>💎</span>
               </button>
             </div>
           )}
         </div>
 
         {/* Siege Management View (for leaders/sub-leaders) */}
-        {!showAllGuilds && myGuild && viewMode === 'runeStats' && canPromoteMembers && (
+        {!showAllGuilds && myGuild && viewMode === 'siege' && canPromoteMembers && (
           <SiegeManagement guildId={myGuild.id} onToast={showToast} />
+        )}
+
+        {/* Rune Efficiency View (for leaders/sub-leaders) */}
+        {!showAllGuilds && myGuild && viewMode === 'runeEfficiency' && canPromoteMembers && (
+          <RuneEfficiency guildId={myGuild.id} />
         )}
 
         {/* No Guild Message */}
@@ -501,15 +527,22 @@ function GuildPage() {
         )}
 
         {/* All Guilds Section */}
-        {showAllGuilds && (
+        {showAllGuilds && !selectedGuildProfile && (
           <div className={styles.allGuilds}>
             <h2>Toutes les Guildes</h2>
-            {guilds.filter(g => g.id !== myGuild?.id).length === 0 ? (
-              <p className={styles.noGuilds}>Aucune autre guilde disponible.</p>
+            <input
+              type="text"
+              className={styles.guildSearchInput}
+              placeholder="Rechercher une guilde..."
+              value={guildSearch}
+              onChange={(e) => setGuildSearch(e.target.value)}
+            />
+            {guilds.filter(g => g.id !== myGuild?.id && g.name.toLowerCase().includes(guildSearch.toLowerCase())).length === 0 ? (
+              <p className={styles.noGuilds}>Aucune guilde trouvée.</p>
             ) : (
               <div className={styles.guildsGrid}>
                 {guilds
-                  .filter(guild => guild.id !== myGuild?.id)
+                  .filter(guild => guild.id !== myGuild?.id && guild.name.toLowerCase().includes(guildSearch.toLowerCase()))
                   .map(guild => (
                     <GuildCard
                       key={guild.id}
@@ -518,10 +551,83 @@ function GuildPage() {
                       canJoin={!myGuild}
                       onJoinRequest={openJoinRequestModal}
                       onCancelRequest={cancelJoinRequest}
+                      onClick={viewGuildProfile}
                     />
                   ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Guild Profile View */}
+        {showAllGuilds && selectedGuildProfile && (
+          <div className={styles.guildProfile}>
+            <button
+              className={styles.btnBack}
+              onClick={() => setSelectedGuildProfile(null)}
+            >
+              ← Retour aux guildes
+            </button>
+
+            <div className={styles.guildProfileHeader}>
+              {selectedGuildProfile.logo && (
+                <img
+                  src={selectedGuildProfile.logo}
+                  alt={selectedGuildProfile.name}
+                  className={styles.guildProfileLogo}
+                />
+              )}
+              <div className={styles.guildProfileInfo}>
+                <h2>{selectedGuildProfile.name}</h2>
+                <p className={styles.guildProfileDescription}>
+                  {selectedGuildProfile.description || 'Aucune description'}
+                </p>
+                <div className={styles.guildProfileStats}>
+                  <span>👑 Leader: {selectedGuildProfile.leader?.name}</span>
+                  <span>⭐ Sous-chefs: {selectedGuildProfile.subLeaders?.length || 0}/4</span>
+                  <span>👥 Membres: {selectedGuildProfile.members?.length || 0}/{selectedGuildProfile.maxMembers}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.guildProfileMembers}>
+              <h3>Membres de la Guilde</h3>
+
+              {/* Leadership */}
+              <div className={styles.membersRow}>
+                {selectedGuildProfile.leader && (
+                  <MemberCard
+                    member={selectedGuildProfile.leader}
+                    role="leader"
+                  />
+                )}
+                {selectedGuildProfile.subLeaders?.map(sub => (
+                  <MemberCard
+                    key={sub.id}
+                    member={sub}
+                    role="subLeader"
+                  />
+                ))}
+              </div>
+
+              <hr className={styles.membersDivider} />
+
+              {/* Regular Members */}
+              <div className={styles.membersRow}>
+                {selectedGuildProfile.members
+                  ?.filter(m =>
+                    m.id !== selectedGuildProfile.leader?.id &&
+                    !selectedGuildProfile.subLeaders?.some(s => s.id === m.id)
+                  )
+                  .map(member => (
+                    <MemberCard
+                      key={member.id}
+                      member={member}
+                      role="member"
+                    />
+                  ))}
+              </div>
+            </div>
           </div>
         )}
 

@@ -631,6 +631,86 @@ router.get('/:id/rune-stats', authenticate, async (req, res) => {
   }
 });
 
+// Rune set definitions
+const RUNE_SETS = [
+  { id: 1, name: 'Energy', pieces: 2, color: '#22c55e' },
+  { id: 2, name: 'Guard', pieces: 2, color: '#64748b' },
+  { id: 3, name: 'Swift', pieces: 4, color: '#3b82f6' },
+  { id: 4, name: 'Blade', pieces: 2, color: '#ef4444' },
+  { id: 5, name: 'Rage', pieces: 4, color: '#f97316' },
+  { id: 6, name: 'Focus', pieces: 2, color: '#8b5cf6' },
+  { id: 7, name: 'Endure', pieces: 2, color: '#14b8a6' },
+  { id: 8, name: 'Fatal', pieces: 4, color: '#dc2626' },
+  { id: 10, name: 'Despair', pieces: 4, color: '#a855f7' },
+  { id: 11, name: 'Vampire', pieces: 4, color: '#be123c' },
+  { id: 13, name: 'Violent', pieces: 4, color: '#7c3aed' },
+  { id: 14, name: 'Nemesis', pieces: 2, color: '#f59e0b' },
+  { id: 15, name: 'Will', pieces: 2, color: '#eab308' },
+  { id: 16, name: 'Shield', pieces: 2, color: '#0ea5e9' },
+  { id: 17, name: 'Revenge', pieces: 2, color: '#e11d48' },
+  { id: 18, name: 'Destroy', pieces: 2, color: '#78716c' },
+  { id: 19, name: 'Fight', pieces: 2, color: '#ef4444' },
+  { id: 20, name: 'Determination', pieces: 2, color: '#2563eb' },
+  { id: 21, name: 'Enhance', pieces: 2, color: '#16a34a' },
+  { id: 22, name: 'Accuracy', pieces: 2, color: '#9333ea' },
+  { id: 23, name: 'Tolerance', pieces: 2, color: '#0d9488' },
+];
+
+// Get guild rune efficiency per set
+router.get('/:id/rune-efficiency', authenticate, async (req, res) => {
+  try {
+    const guild = await Guild.findByPk(req.params.id);
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    const isMember = await GuildMember.findOne({ where: { guildId: guild.id, userId: req.user.id } });
+    if (!isMember && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Vous devez être membre de cette guilde' });
+    }
+
+    const memberRows = await GuildMember.findAll({ where: { guildId: guild.id } });
+    const memberIds = memberRows.map(m => m.userId);
+
+    const members = await User.findAll({
+      where: { id: { [Op.in]: memberIds } },
+      attributes: ['id', 'name', 'username', 'swData']
+    });
+
+    const membersWithData = members.filter(m => m.swData?.runeEfficiency);
+
+    // Aggregate efficiency per set across all members
+    const efficiencies = RUNE_SETS.map(set => {
+      let totalEfficiency = 0;
+      let totalRunes = 0;
+      let memberCount = 0;
+
+      membersWithData.forEach(member => {
+        const setData = member.swData.runeEfficiency?.[set.id];
+        if (setData && setData.count > 0) {
+          totalEfficiency += setData.avgEfficiency * setData.count;
+          totalRunes += setData.count;
+          memberCount++;
+        }
+      });
+
+      return {
+        setId: set.id,
+        name: set.name,
+        pieces: set.pieces,
+        color: set.color,
+        avgEfficiency: totalRunes > 0 ? totalEfficiency / totalRunes : 0,
+        totalRunes,
+        memberCount
+      };
+    }).filter(s => s.totalRunes > 0);
+
+    res.json({ efficiencies });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Leave guild (members can leave, but not the leader)
 router.post('/:id/leave', authenticate, async (req, res) => {
   try {

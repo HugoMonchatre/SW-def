@@ -50,12 +50,12 @@ function WeeklySiegeWidget() {
   };
 
   const formatWeekRange = (weekStartDate) => {
-    const saturday = new Date(weekStartDate);
-    const friday = new Date(saturday);
-    friday.setDate(saturday.getDate() + 6);
+    const friday = new Date(weekStartDate);
+    const thursday = new Date(friday);
+    thursday.setDate(friday.getDate() + 6);
 
     const formatDate = (d) => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-    return `${formatDate(saturday)} - ${formatDate(friday)}`;
+    return `${formatDate(friday)} - ${formatDate(thursday)}`;
   };
 
   const formatSiegeDate = (dateString) => {
