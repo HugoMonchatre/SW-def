@@ -33,7 +33,18 @@
       "Bash(postgres:*)",
       "Bash(npm uninstall:*)",
       "Bash(npm run build:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(npm:*)",
+      "Bash(\"C:\\\\Users\\\\hugo.monchatre\\\\AppData\\\\Roaming\\\\npm\\\\npm.cmd\" install --prefix \"N:\\\\Code\\\\SW-def\\\\frontend\")",
+      "Bash(\"C:\\\\Users\\\\hugo.monchatre\\\\AppData\\\\Roaming\\\\npm\\\\npm.cmd\" install)",
+      "Bash(where:*)",
+      "Bash(ls:*)",
+      "Bash(node -e \":*)",
+      "WebFetch(domain:utility.setraart.fr)",
+      "Bash(head -5 grep -o '_a={[^}]*}' /tmp/main_sw.js)",
+      "Bash(grep -o 'getRuneEffiMaxGem\\(e,i\\){.\\\\{1500\\\\}' /tmp/main_sw.js)"
     ]
   }
 }
