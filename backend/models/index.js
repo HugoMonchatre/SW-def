@@ -11,6 +11,7 @@ import Monster from './Monster.js';
 import Siege from './Siege.js';
 import WeeklySiegeAvailability from './WeeklySiegeAvailability.js';
 import Notification from './Notification.js';
+import SwData from './SwData.js';
 
 // ── Junction Tables ──
 
@@ -120,6 +121,10 @@ User.hasMany(WeeklySiegeAvailability, { as: 'weeklyAvailabilities', foreignKey: 
 Notification.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 User.hasMany(Notification, { as: 'notifications', foreignKey: 'userId' });
 
+// SwData associations (1-to-1)
+SwData.belongsTo(User, { foreignKey: 'userId' });
+User.hasOne(SwData, { as: 'swDataRecord', foreignKey: 'userId' });
+
 export {
   User,
   Guild,
@@ -137,7 +142,8 @@ export {
   Siege,
   SiegeRegistration,
   WeeklySiegeAvailability,
-  Notification
+  Notification,
+  SwData
 };
 
 export default sequelize;

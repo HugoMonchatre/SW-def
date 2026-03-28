@@ -1,7 +1,12 @@
 import express from 'express';
 import { Op } from 'sequelize';
 import User from '../models/User.js';
+import Monster from '../models/Monster.js';
 import { authenticate, authorize, parseId } from '../middleware/auth.js';
+import { computeBestRuneSetsAsync } from '../services/runWorker.js';
+import { computeRuneEfficiency } from '../services/runeCalculator.js';
+import { validate, swDataSchema, profileSchema, passwordSchema, themeSchema } from '../middleware/validate.js';
+import SwData from '../models/SwData.js';
 
 const router = express.Router();
 
@@ -117,7 +122,7 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
 });
 
 // Update own profile (username, avatar)
-router.patch('/me/profile', authenticate, async (req, res) => {
+router.patch('/me/profile', authenticate, validate(profileSchema), async (req, res) => {
   try {
     const { username, avatar } = req.body;
     const user = await User.findByPk(req.user.id);
@@ -165,7 +170,7 @@ router.patch('/me/profile', authenticate, async (req, res) => {
 });
 
 // Update own theme preference
-router.patch('/me/theme', authenticate, async (req, res) => {
+router.patch('/me/theme', authenticate, validate(themeSchema), async (req, res) => {
   try {
     const { theme } = req.body;
     if (!['light', 'dark'].includes(theme)) {
@@ -187,7 +192,7 @@ router.patch('/me/theme', authenticate, async (req, res) => {
 });
 
 // Update own password (email provider only)
-router.patch('/me/password', authenticate, async (req, res) => {
+router.patch('/me/password', authenticate, validate(passwordSchema), async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
@@ -222,134 +227,12 @@ router.patch('/me/password', authenticate, async (req, res) => {
   }
 });
 
-// Calculate speed for a rune
-function getRuneSpeed(rune) {
-  let speed = 0;
-  // Main stat (pri_eff) - Type 8 = Speed
-  if (rune.pri_eff && rune.pri_eff[0] === 8) speed += rune.pri_eff[1];
-  // Prefix stat
-  if (rune.prefix_eff && rune.prefix_eff[0] === 8) speed += rune.prefix_eff[1];
-  // Substats (sec_eff) - [type, value, gems, grind]
-  if (rune.sec_eff) {
-    rune.sec_eff.forEach(sub => {
-      if (sub[0] === 8) speed += sub[1] + (sub[3] || 0);
-    });
-  }
-  return speed;
-}
-
-// Find best rune set for a given main set (4 pieces) + optional offset set (2 pieces)
-function calculateBestRuneSet(allRunes, mainSetId, offsetSetId = null) {
-  // Group runes by slot and set
-  const runesBySlotAndSet = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {}, 6: {} };
-
-  allRunes.forEach(rune => {
-    const slot = rune.slot_no;
-    const set = rune.set_id;
-    if (!runesBySlotAndSet[slot][set]) {
-      runesBySlotAndSet[slot][set] = [];
-    }
-    runesBySlotAndSet[slot][set].push({
-      id: rune.rune_id,
-      slot,
-      set,
-      speed: getRuneSpeed(rune)
-    });
-  });
-
-  // Sort by speed descending
-  for (let slot = 1; slot <= 6; slot++) {
-    for (let set in runesBySlotAndSet[slot]) {
-      runesBySlotAndSet[slot][set].sort((a, b) => b.speed - a.speed);
-    }
-  }
-
-  // Get best rune for a slot
-  const getBestRune = (slot, setId = null) => {
-    if (setId !== null) {
-      const runes = runesBySlotAndSet[slot][setId];
-      return runes && runes.length > 0 ? runes[0] : null;
-    }
-    let best = null;
-    for (let set in runesBySlotAndSet[slot]) {
-      const runes = runesBySlotAndSet[slot][set];
-      if (runes.length > 0 && (!best || runes[0].speed > best.speed)) {
-        best = runes[0];
-      }
-    }
-    return best;
-  };
-
-  const slots = [1, 2, 3, 4, 5, 6];
-  let bestTotal = -1;
-
-  // Try all combinations of 4 slots for main set
-  for (let i = 0; i < slots.length - 3; i++) {
-    for (let j = i + 1; j < slots.length - 2; j++) {
-      for (let k = j + 1; k < slots.length - 1; k++) {
-        for (let l = k + 1; l < slots.length; l++) {
-          const mainSlots = [slots[i], slots[j], slots[k], slots[l]];
-          const offsetSlots = slots.filter(s => !mainSlots.includes(s));
-
-          let valid = true;
-          let total = 0;
-
-          // Get best main set runes
-          for (const slot of mainSlots) {
-            const rune = getBestRune(slot, mainSetId);
-            if (!rune) { valid = false; break; }
-            total += rune.speed;
-          }
-
-          if (!valid) continue;
-
-          // Get best offset runes
-          for (const slot of offsetSlots) {
-            const rune = offsetSetId ? getBestRune(slot, offsetSetId) : getBestRune(slot);
-            if (offsetSetId && !rune) { valid = false; break; }
-            if (rune) total += rune.speed;
-          }
-
-          if (!valid) continue;
-          if (total > bestTotal) bestTotal = total;
-        }
-      }
-    }
-  }
-
-  return bestTotal;
-}
-
 // Upload SW JSON data
-router.post('/me/sw-data', authenticate, async (req, res) => {
+router.post('/me/sw-data', authenticate, validate(swDataSchema), async (req, res) => {
   try {
     const { jsonData } = req.body;
 
-    if (!jsonData) {
-      return res.status(400).json({ error: 'No JSON data provided' });
-    }
-
-    // Validate JSON structure - must be a valid SW export
-    if (!jsonData.command || jsonData.command !== 'HubUserLogin') {
-      return res.status(400).json({
-        error: 'Invalid file format. Must be a Summoners War export file (HubUserLogin).'
-      });
-    }
-
-    if (!jsonData.wizard_info) {
-      return res.status(400).json({
-        error: 'Invalid file format. Missing wizard_info.'
-      });
-    }
-
     const wizardInfo = jsonData.wizard_info;
-
-    // Validate required wizard fields
-    if (!wizardInfo.wizard_id || !wizardInfo.wizard_name) {
-      return res.status(400).json({
-        error: 'Invalid file format. Missing wizard_id or wizard_name.'
-      });
-    }
 
     // Extract essential data only
     const user = await User.findByPk(req.user.id);
@@ -371,43 +254,77 @@ router.post('/me/sw-data', authenticate, async (req, res) => {
     }
     const runeCount = allRunes.length;
 
-    // Calculate best rune sets (Set IDs: Swift=3, Violent=13, Despair=10, Will=15)
-    // Swift bonus: +25% base speed (assuming 100 base = +25 SPD)
-    const SWIFT_BONUS = 25;
-    const swiftSpeed = calculateBestRuneSet(allRunes, 3);
-    const swiftWillSpeed = calculateBestRuneSet(allRunes, 3, 15);
+    const bestRuneSets = await computeBestRuneSetsAsync(allRunes);
 
-    const bestRuneSets = {
-      swift: swiftSpeed > 0 ? swiftSpeed + SWIFT_BONUS : -1,
-      swiftWill: swiftWillSpeed > 0 ? swiftWillSpeed + SWIFT_BONUS : -1,
-      violent: calculateBestRuneSet(allRunes, 13),
-      violentWill: calculateBestRuneSet(allRunes, 13, 15),
-      despair: calculateBestRuneSet(allRunes, 10),
-      despairWill: calculateBestRuneSet(allRunes, 10, 15)
+    // Compute efficiency stats
+    const efficiencies = allRunes.map(r => computeRuneEfficiency(r));
+    const efficiencyStats = {
+      total: allRunes.length,
+      above100: efficiencies.filter(e => e >= 100).length,
+      above105: efficiencies.filter(e => e >= 105).length,
+      above110: efficiencies.filter(e => e >= 110).length,
+      above115: efficiencies.filter(e => e >= 115).length,
+      above120: efficiencies.filter(e => e >= 120).length,
     };
 
     // Extract unit com2us_ids for monster ownership checks
-    const unitIds = jsonData.unit_list
-      ? [...new Set(jsonData.unit_list.map(u => u.unit_master_id))]
-      : [];
+    const unitList = jsonData.unit_list || [];
+    const unitIds = [...new Set(unitList.map(u => u.unit_master_id))];
 
-    user.swData = {
-      wizardId: wizardInfo.wizard_id,
-      wizardName: wizardInfo.wizard_name,
-      wizardLevel: wizardInfo.wizard_level || 0,
-      lastUpload: new Date(),
+    // All LD units lvl40 (attribute 4=light, 5=dark) — categorization done at GET time via Monster DB
+    const ldMap = new Map();
+    unitList.filter(u => (u.attribute === 4 || u.attribute === 5) && u.unit_level === 40)
+      .forEach(u => ldMap.set(u.unit_master_id, (ldMap.get(u.unit_master_id) || 0) + 1));
+    const fiveStarLD = Array.from(ldMap.entries()).map(([id, count]) => ({ com2us_id: id, count }));
+
+    // Dupe 4-star elemental lvl40 (class >= 4, attribute 1-3, count > 1)
+    const fourStarElemMap = new Map();
+    unitList.filter(u => u.class >= 4 && u.attribute >= 1 && u.attribute <= 3 && u.unit_level === 40)
+      .forEach(u => fourStarElemMap.set(u.unit_master_id, (fourStarElemMap.get(u.unit_master_id) || 0) + 1));
+    const fourStarElemDupes = Array.from(fourStarElemMap.entries())
+      .filter(([_, cnt]) => cnt > 1)
+      .map(([id, count]) => ({ com2us_id: id, count }));
+
+    // Upload history for sparklines (keep last 10)
+    const existing = await SwData.findOne({ where: { userId: req.user.id } });
+    const prevHistory = existing?.history || [];
+    const history = [...prevHistory.slice(-9), { date: new Date().toISOString(), runeCount, artefactCount: jsonData.artifacts?.length || 0 }];
+
+    const SERVER_NAMES = { 1: 'Global', 2: 'Asia', 3: 'Korea', 4: 'Japan', 5: 'China', 6: 'Europe' };
+    const server = SERVER_NAMES[jsonData.this_server_id] || (jsonData.country || wizardInfo.wizard_last_country || '?');
+
+    // Resolve representative unit image (profile monster)
+    let repUnitImage = null;
+    const repUnitId = wizardInfo.rep_unit_id;
+    if (repUnitId) {
+      const repUnit = unitList.find(u => u.unit_id === repUnitId);
+      if (repUnit) {
+        const repMonster = await Monster.findOne({ where: { com2us_id: repUnit.unit_master_id } });
+        if (repMonster?.image_filename) {
+          repUnitImage = `https://swarfarm.com/static/herders/images/monsters/${repMonster.image_filename}`;
+        }
+      }
+    }
+
+    const [swRecord] = await SwData.upsert({
+      userId:           req.user.id,
+      wizardId:         wizardInfo.wizard_id,
+      wizardName:       wizardInfo.wizard_name,
+      wizardLevel:      wizardInfo.wizard_level || 0,
+      server,
+      lastUpload:       new Date(),
       unitCount,
       runeCount,
       bestRuneSets,
-      units: unitIds
-    };
-
-    await user.save();
-
-    res.json({
-      message: 'SW data uploaded successfully',
-      swData: user.swData
+      units:            unitIds,
+      fiveStarLD,
+      fourStarElemDupes,
+      history,
+      repUnitImage,
+      efficiencyStats,
     });
+
+    res.json({ message: 'SW data uploaded successfully', swData: swRecord });
   } catch (error) {
     console.error('SW Data upload error:', error);
     res.status(500).json({ error: 'Error processing SW data' });
@@ -417,12 +334,49 @@ router.post('/me/sw-data', authenticate, async (req, res) => {
 // Get my SW data
 router.get('/me/sw-data', authenticate, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const swData = await SwData.findOne({ where: { userId: req.user.id } });
+    res.json({ swData: swData || null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    res.json({ swData: user.swData || null });
+// Get my categorized monsters (5*LD, 4*LD, dupe 4* elem)
+router.get('/me/monsters', authenticate, async (req, res) => {
+  try {
+    const swData = await SwData.findOne({ where: { userId: req.user.id } });
+    if (!swData) return res.json({ fiveStarLD: [], fourStarLD: [], fourStarElemDupes: [] });
+
+    const { fiveStarLD = [], fourStarElemDupes = [] } = swData;
+    const allIds = [...new Set([
+      ...fiveStarLD.map(m => m.com2us_id),
+      ...fourStarElemDupes.map(m => m.com2us_id)
+    ])];
+
+    if (allIds.length === 0) return res.json({ fiveStarLD: [], fourStarLD: [], fourStarElemDupes: [] });
+
+    const monsters = await Monster.findAll({ where: { com2us_id: { [Op.in]: allIds } } });
+    const monsterMap = Object.fromEntries(monsters.map(m => [m.com2us_id, m.toJSON()]));
+    const enrich = (list) => list.map(item => ({ ...item, ...(monsterMap[item.com2us_id] || {}) }));
+
+    const EXCLUDED_LD_IDS = new Set([
+      19214, 17114,           // Elsharion
+      27314,                  // Altaïr
+      21814,                  // Jeanne
+      19215, 17115,           // Veromos
+      23015,                  // Eirgar
+      30215,                  // Ryomen Sukuna
+      28915,                  // Gapsoo
+      27804,                  // Dual Blade
+      1000101, 1000102, 1000103, 1000111, 1000112, 1000113, // Homunculus Attack
+      1000204, 1000205, 1000214, 1000215                    // Homunculus Support
+    ]);
+
+    const enrichedLD = enrich(fiveStarLD);
+    const nat5LD = enrichedLD.filter(m => m.natural_stars === 5 && !EXCLUDED_LD_IDS.has(m.com2us_id));
+    const nat4LD = enrichedLD.filter(m => m.natural_stars === 4);
+
+    res.json({ fiveStarLD: nat5LD, fourStarLD: nat4LD, fourStarElemDupes: enrich(fourStarElemDupes) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -431,14 +385,7 @@ router.get('/me/sw-data', authenticate, async (req, res) => {
 // Delete my SW data
 router.delete('/me/sw-data', authenticate, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    user.swData = null;
-    await user.save();
-
+    await SwData.destroy({ where: { userId: req.user.id } });
     res.json({ message: 'SW data deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });

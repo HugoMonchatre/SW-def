@@ -18,6 +18,7 @@ import inventoryRoutes from './routes/inventory.js';
 import towerRoutes from './routes/towers.js';
 import siegeRoutes from './routes/sieges.js';
 import notificationRoutes from './routes/notifications.js';
+import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -73,14 +74,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    error: 'Something went wrong!',
-    message: err.message
-  });
-});
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
