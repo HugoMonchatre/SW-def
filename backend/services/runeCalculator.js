@@ -51,7 +51,13 @@ export function computeRuneEfficiency(rune) {
   return Math.round(10000 * raw / 2.8) / 100;
 }
 
-const SET_NAMES = { 3: 'swift', 10: 'despair', 13: 'violent', 15: 'will' };
+const SET_NAMES = {
+  1: 'energy',   2: 'guard',    3: 'swift',    4: 'blade',
+  5: 'rage',     6: 'focus',    7: 'endure',   8: 'fatal',
+  10: 'despair', 11: 'vampire', 13: 'violent', 14: 'nemesis',
+  15: 'will',    16: 'shield',  17: 'revenge', 18: 'destroy',
+  20: 'enhance', 21: 'accuracy',22: 'tolerance',
+};
 
 function getRuneSpeed(rune) {
   let speed = 0;
@@ -84,10 +90,17 @@ function getRuneMaxSpeed(rune) {
   return speed;
 }
 
-function buildRuneInfo(rune, speedFn) {
-  const maxGrind = rune.slot_no !== 2 ? (isAncient(rune) ? MAX_GRIND_ANCIENT : MAX_GRIND_REGULAR) : 0;
-  const speedBreakdown = [];
+const STAT_NAMES = {
+  1: 'HP', 2: 'HP%', 3: 'ATK', 4: 'ATK%', 5: 'DEF', 6: 'DEF%',
+  8: 'SPD', 9: 'CRate%', 10: 'CDmg%', 11: 'RES%', 12: 'ACC%',
+};
+const GRINDABLE = new Set([1, 2, 3, 4, 5, 6, 8]);
 
+function buildRuneInfo(rune, speedFn) {
+  const ancient = isAncient(rune);
+  const maxGrind = rune.slot_no !== 2 ? (ancient ? MAX_GRIND_ANCIENT : MAX_GRIND_REGULAR) : 0;
+
+  const speedBreakdown = [];
   if (rune.pri_eff && rune.pri_eff[0] === 8)
     speedBreakdown.push({ source: 'main', value: rune.pri_eff[1] });
   if (rune.prefix_eff && rune.prefix_eff[0] === 8)
@@ -95,21 +108,39 @@ function buildRuneInfo(rune, speedFn) {
   if (rune.sec_eff) {
     rune.sec_eff.forEach(sub => {
       if (sub[0] === 8) speedBreakdown.push({
-        source: 'sub',
-        value: sub[1] + (sub[3] || 0),
-        grind: sub[3] || 0,
-        maxGrind,
+        source: 'sub', value: sub[1] + (sub[3] || 0), grind: sub[3] || 0, maxGrind,
       });
     });
   }
+
+  const mainStat = rune.pri_eff
+    ? { id: rune.pri_eff[0], name: STAT_NAMES[rune.pri_eff[0]] || '?', value: rune.pri_eff[1] }
+    : null;
+
+  const innate = (rune.prefix_eff && rune.prefix_eff[0] !== 0)
+    ? { id: rune.prefix_eff[0], name: STAT_NAMES[rune.prefix_eff[0]] || '?', value: rune.prefix_eff[1] }
+    : null;
+
+  const subs = (rune.sec_eff || []).map(sub => ({
+    id:        sub[0],
+    name:      STAT_NAMES[sub[0]] || '?',
+    value:     sub[1],
+    grind:     sub[3] || 0,
+    enchanted: sub[2] !== 0,
+    grindable: GRINDABLE.has(sub[0]) && rune.slot_no !== 2,
+  }));
 
   return {
     id:      rune.rune_id,
     slot:    rune.slot_no,
     set:     SET_NAMES[rune.set_id] || rune.set_id,
-    ancient: isAncient(rune),
+    rank:    rune.rank,
+    ancient,
     speed:   speedFn(rune),
     speedBreakdown,
+    mainStat,
+    innate,
+    subs,
   };
 }
 
@@ -144,6 +175,7 @@ function calculateBestRuneSet(allRunes, mainSetId, offsetSetId = null, speedFn =
 
   const slots = [1, 2, 3, 4, 5, 6];
   let bestTotal = -1;
+  let bestMaxTotal = -1;
   let bestRunes = null;
 
   for (let i = 0; i < slots.length - 3; i++) {
@@ -173,8 +205,11 @@ function calculateBestRuneSet(allRunes, mainSetId, offsetSetId = null, speedFn =
           }
 
           if (!valid) continue;
-          if (total > bestTotal) {
+
+          const maxTotal = selected.reduce((sum, r) => sum + getRuneMaxSpeed(r.raw), 0);
+          if (total > bestTotal || (total === bestTotal && maxTotal > bestMaxTotal)) {
             bestTotal = total;
+            bestMaxTotal = maxTotal;
             bestRunes = selected;
           }
         }

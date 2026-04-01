@@ -44,14 +44,30 @@ app.use(session({
   }
 }));
 
+// Columns added after initial table creation — run idempotently on every startup
+async function runMigrations() {
+  const migrations = [
+    `ALTER TABLE sw_data ADD COLUMN rep_unit_image VARCHAR(255)`,
+    `ALTER TABLE sw_data ADD COLUMN efficiency_stats TEXT`,
+    `ALTER TABLE weekly_siege_availabilities ADD COLUMN monday_selected BOOLEAN DEFAULT 0`,
+    `ALTER TABLE weekly_siege_availabilities ADD COLUMN thursday_selected BOOLEAN DEFAULT 0`,
+  ];
+  for (const sql of migrations) {
+    try {
+      await sequelize.query(sql);
+    } catch (e) {
+      if (!e.message?.includes('duplicate column name')) throw e;
+    }
+  }
+}
+
 // Database Connection & Sync
 sequelize.authenticate()
   .then(() => {
     console.log('Connected to database');
-    // Use sync without alter to avoid modifying existing tables
-    // This only creates tables that don't exist
     return sequelize.sync();
   })
+  .then(() => runMigrations())
   .then(() => {
     console.log('Database synced');
   })

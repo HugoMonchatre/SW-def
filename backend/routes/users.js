@@ -306,13 +306,13 @@ router.post('/me/sw-data', authenticate, validate(swDataSchema), async (req, res
       }
     }
 
-    const [swRecord] = await SwData.upsert({
+    await SwData.upsert({
       userId:           req.user.id,
       wizardId:         wizardInfo.wizard_id,
       wizardName:       wizardInfo.wizard_name,
       wizardLevel:      wizardInfo.wizard_level || 0,
       server,
-      lastUpload:       new Date(),
+      lastUpload:       jsonData.tvalue ? new Date(jsonData.tvalue * 1000) : new Date(),
       unitCount,
       runeCount,
       bestRuneSets,
@@ -324,6 +324,8 @@ router.post('/me/sw-data', authenticate, validate(swDataSchema), async (req, res
       efficiencyStats,
     });
 
+    // Re-fetch from DB to return actual stored values (upsert returns input, not DB)
+    const swRecord = await SwData.findOne({ where: { userId: req.user.id } });
     res.json({ message: 'SW data uploaded successfully', swData: swRecord });
   } catch (error) {
     console.error('SW Data upload error:', error);

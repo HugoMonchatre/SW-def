@@ -196,6 +196,31 @@ All models use `underscored: true` (camelCase attributes map to snake_case colum
 // MAX_DEFENSES_PER_TOWER = 5, towers "2", "7", "11" are 4-star max
 ```
 
+### SwData
+```javascript
+{
+  id: INTEGER (PK, auto-increment),
+  userId: INTEGER (FK -> User, unique),
+  wizardId: INTEGER,
+  wizardName: STRING,
+  wizardLevel: INTEGER,
+  server: STRING,
+  lastUpload: DATE,        // = tvalue from JSON (export timestamp), NOT upload time
+  unitCount: INTEGER,
+  runeCount: INTEGER,
+  repUnitImage: STRING,    // SWARFarm CDN URL of representative unit
+  bestRuneSets: TEXT,      // JSON via jsonCol() — see note below
+  units: TEXT,             // JSON via jsonCol()
+  fiveStarLD: TEXT,        // JSON via jsonCol()
+  fourStarElemDupes: TEXT, // JSON via jsonCol()
+  history: TEXT,           // JSON via jsonCol() — last 10 uploads [{date, runeCount, artefactCount}]
+  efficiencyStats: TEXT,   // JSON via jsonCol() — {total, above100..120}
+}
+```
+**Important:** All JSON columns use `DataTypes.TEXT` with explicit `get()`/`set()` via the `jsonCol()` helper
+(NOT `DataTypes.JSON`). SQLite columns added via `ALTER TABLE` are not auto-parsed by Sequelize's
+`DataTypes.JSON` getter — explicit `JSON.parse`/`JSON.stringify` is required.
+
 ### WeeklySiegeAvailability
 ```javascript
 {
@@ -299,6 +324,52 @@ The `toJSON()` methods already handle `_id` manually (`values._id = values.id`).
 UNIQUE constraints on foreign key columns in SQLite. If a new model is added, the table will be
 created automatically. For schema changes on existing tables, use migration scripts
 (see `backend/scripts/recreateWeeklySiegeTable.js` as example).
+
+## Important: Adding columns to existing tables
+Use the `runMigrations()` function in `server.js`. It runs idempotent `ALTER TABLE` statements on
+every startup, catching and ignoring "duplicate column name" errors:
+
+```javascript
+async function runMigrations() {
+  const migrations = [
+    `ALTER TABLE sw_data ADD COLUMN my_new_col TEXT`,
+  ];
+  for (const sql of migrations) {
+    try { await sequelize.query(sql); }
+    catch (e) { if (!e.message?.includes('duplicate column name')) throw e; }
+  }
+}
+```
+Then chain it after `sequelize.sync()`: `.then(() => sequelize.sync()).then(() => runMigrations())`.
+
+## Rune Efficiency Formula
+Formula used (matches setraart.fr reference tool):
+
+```
+raw = 1.0                                    // main stat always counts as 1.0
+raw += statScore(innate)                     // prefix stat, not grindable
+raw += sum(statScore(sub[0], sub[1]+sub[3])) // substats, grind included in value
+
+statScore(statId, value):
+  max = SUBSTAT_MAX_CLASSIC[statId]
+  flat stats (HP+/ATK+/DEF+ = ids 1,3,5): value / (2 * max)  // half-weighted
+  other stats:                              value / max
+
+efficience = round(10000 * raw / 2.8) / 100
+
+// 2.8 = 1.0 (main) + 0.2 (innate, 1 roll at 20% max) + 4×0.4 (subs at 40% max)
+// Returns 0 if no subs are revealed yet (raw === 1.0)
+```
+
+**Speed tiebreaker:** When two rune combinations have identical current speed, the one with higher
+max grind potential (`getRuneMaxSpeed`) wins.
+
+## SW JSON structure (upload)
+- `tvalue`: Unix timestamp of the JSON export — used as `lastUpload` (NOT `new Date()`)
+- `wizard_info`: wizard metadata (id, name, level, rep_unit_id)
+- `runes`: inventory runes
+- `unit_list[].runes`: equipped runes (merged with inventory for all calculations)
+- `sec_eff[i]`: `[statId, value, enchanted, grind]`
 
 ## Common Commands
 

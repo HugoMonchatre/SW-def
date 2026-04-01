@@ -36,6 +36,7 @@ yarn-error.log*
 
 # Misc data files
 backend/vincnet35-*.json
+backend/JSONjoueurs/
 
 # Coverage
 coverage/

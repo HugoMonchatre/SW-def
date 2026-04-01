@@ -334,7 +334,7 @@
 .runeModalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.55);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -344,12 +344,10 @@
 .runeModal {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 1.25rem;
-  min-width: 360px;
-  max-width: 480px;
-  width: 100%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  width: 480px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
 }
 
 .runeModalHeader {
@@ -371,37 +369,63 @@
 }
 .runeModalClose:hover { background: var(--bg-secondary); }
 
-.runeModalList {
+/* ── 3×2 rune grid ── */
+.runeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+
+.runeCard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-top: 2px solid var(--rune-color, var(--border-color));
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0;
 }
 
-.runeModalRow {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
+.runeCardEmpty {
   background: var(--bg-secondary);
-  border-radius: 8px;
-}
-
-.runeModalSlot {
+  border: 1px dashed var(--border-color);
+  border-radius: 10px;
+  min-height: 130px;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  flex-shrink: 0;
-  width: 90px;
-}
-
-.runeSlotNum {
-  font-size: 0.8rem;
-  font-weight: 700;
+  justify-content: center;
+  opacity: 0.25;
+  font-size: 0.75rem;
   color: var(--text-secondary);
 }
 
+.runeCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.runeCardLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.runeCardSlot {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+}
+
+.runeCardRank {
+  font-size: 0.68rem;
+}
+
 .runeAncient {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 700;
   color: #f59e0b;
   background: rgba(245, 158, 11, 0.15);
@@ -411,59 +435,92 @@
 }
 
 .runeSetBadgeSmall {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 600;
   border: 1px solid;
   border-radius: 4px;
-  padding: 0.1rem 0.3rem;
+  padding: 0.1rem 0.35rem;
 }
 
-.runeModalStats {
+/* Main stat */
+.runeMainStat {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  flex: 1;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 0.4rem;
 }
 
-.runeStatChip {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  font-size: 0.72rem;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 0.15rem 0.4rem;
-}
-
-.runeStatSource {
-  color: var(--text-secondary);
-  font-size: 0.65rem;
-}
-
-.runeStatVal {
-  color: var(--text-primary);
+.runeMainName {
+  font-size: 0.78rem;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
-.runeStatMax {
-  color: var(--text-secondary);
-  font-size: 0.65rem;
-}
-
-.runeStatEmpty {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  opacity: 0.5;
-}
-
-.runeModalTotal {
-  flex-shrink: 0;
+.runeMainVal {
   font-size: 1rem;
   font-weight: 700;
+  color: var(--rune-color, var(--text-primary));
+}
+
+.runeCardDivider {
+  height: 1px;
+  background: var(--border-color);
+  margin-bottom: 0.4rem;
+}
+
+/* Stats block */
+.runeStatsBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+/* Innate & substats */
+.runeSubRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.runeInnate {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+  margin-bottom: 0.15rem;
+}
+
+.runeInnate .runeSubName {
+  color: #818cf8;
+  font-style: italic;
+}
+
+.runeInnate .runeSubVal {
+  color: #818cf8;
+  font-style: italic;
+}
+
+.runeSubSpd .runeSubName { color: #38bdf8; }
+.runeSubSpd .runeSubVal  { color: #38bdf8; font-weight: 700; }
+
+.runeSubName {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.runeSubVal {
+  font-size: 0.75rem;
+  font-weight: 600;
   color: var(--text-primary);
-  width: 36px;
-  text-align: right;
+  white-space: nowrap;
+}
+
+.runeSubGrind {
+  font-size: 0.65rem;
+  color: #a78bfa;
+  font-weight: 500;
 }
 
 /* ── Delete button ── */

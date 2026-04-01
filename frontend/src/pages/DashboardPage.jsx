@@ -57,10 +57,63 @@ const SET_META = {
 
 const BASE_SPEED = 100;
 
-const SOURCE_LABEL = { main: 'main', prefix: 'innate', sub: 'sub' };
+
+const RANK_COLOR = { 5: '#f59e0b', 4: '#a855f7', 3: '#3b82f6', 15: '#f59e0b' };
+const RANK_LABEL = { 5: '★', 4: '★', 3: '★', 15: '✦' };
+
+function RuneCard({ rune, color }) {
+  const rankColor = RANK_COLOR[rune.rank] || 'var(--text-secondary)';
+  return (
+    <div className={styles.runeCard} style={{ '--rune-color': color }}>
+      {/* Header */}
+      <div className={styles.runeCardHeader}>
+        <div className={styles.runeCardLeft}>
+          <span className={styles.runeCardSlot}>S{rune.slot}</span>
+          <span className={styles.runeCardRank} style={{ color: rankColor }}>{RANK_LABEL[rune.rank] || ''}</span>
+          {rune.ancient && <span className={styles.runeAncient}>A</span>}
+        </div>
+        <span className={styles.runeSetBadgeSmall} style={{ borderColor: color, color }}>{rune.set}</span>
+      </div>
+
+      {/* Main stat */}
+      {rune.mainStat && (
+        <div className={styles.runeMainStat}>
+          <span className={styles.runeMainName}>{rune.mainStat.name.replace('%', '')}</span>
+          <span className={styles.runeMainVal}>{rune.mainStat.value}{rune.mainStat.name.includes('%') ? '%' : ''}</span>
+        </div>
+      )}
+
+      <div className={styles.runeCardDivider} />
+
+      {/* Stats block */}
+      <div className={styles.runeStatsBlock}>
+        {rune.innate && (
+          <div className={`${styles.runeSubRow} ${styles.runeInnate}`}>
+            <span className={styles.runeSubName}>{rune.innate.name.replace('%', '')}</span>
+            <span className={styles.runeSubVal}>+{rune.innate.value}{rune.innate.name.includes('%') ? '%' : ''}</span>
+          </div>
+        )}
+        {rune.subs.map((sub, i) => {
+          const isPct = sub.name.includes('%');
+          const label = sub.name.replace('%', '');
+          const total = sub.value + sub.grind;
+          return (
+            <div key={i} className={`${styles.runeSubRow} ${sub.id === 8 ? styles.runeSubSpd : ''}`}>
+              <span className={styles.runeSubName}>{label}</span>
+              <span className={styles.runeSubVal}>
+                +{total}{isPct ? '%' : ''}
+                {sub.grind > 0 && <span className={styles.runeSubGrind}> (+{sub.grind}{isPct ? '%' : ''})</span>}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function RuneDetailModal({ runes, setName, color, onClose }) {
-  const sorted = [...runes].sort((a, b) => a.slot - b.slot);
+  const bySlot = Object.fromEntries(runes.map(r => [r.slot, r]));
   return (
     <div className={styles.runeModalOverlay} onClick={onClose}>
       <div className={styles.runeModal} onClick={e => e.stopPropagation()}>
@@ -68,28 +121,11 @@ function RuneDetailModal({ runes, setName, color, onClose }) {
           <span className={styles.swiftBadge} style={{ borderColor: color, color }}>{setName}</span>
           <button className={styles.runeModalClose} onClick={onClose}>✕</button>
         </div>
-        <div className={styles.runeModalList}>
-          {sorted.map(rune => (
-            <div key={rune.id} className={styles.runeModalRow}>
-              <div className={styles.runeModalSlot}>
-                <span className={styles.runeSlotNum}>S{rune.slot}</span>
-                {rune.ancient && <span className={styles.runeAncient}>A</span>}
-                <span className={styles.runeSetBadgeSmall} style={{ borderColor: color, color }}>{rune.set}</span>
-              </div>
-              <div className={styles.runeModalStats}>
-                {rune.speedBreakdown.map((s, i) => (
-                  <span key={i} className={styles.runeStatChip}>
-                    <span className={styles.runeStatSource}>{SOURCE_LABEL[s.source]}</span>
-                    <span className={styles.runeStatVal}>+{s.value}</span>
-                    {s.source === 'sub' && s.maxGrind > 0 && (
-                      <span className={styles.runeStatMax}>(max +{s.value - s.grind + s.maxGrind})</span>
-                    )}
-                  </span>
-                ))}
-                {rune.speedBreakdown.length === 0 && <span className={styles.runeStatEmpty}>0 spd</span>}
-              </div>
-              <div className={styles.runeModalTotal}>+{rune.speed}</div>
-            </div>
+        <div className={styles.runeGrid}>
+          {[1, 2, 3, 4, 5, 6].map(slot => (
+            bySlot[slot]
+              ? <RuneCard key={slot} rune={bySlot[slot]} color={color} />
+              : <div key={slot} className={styles.runeCardEmpty}><span>S{slot}</span></div>
           ))}
         </div>
       </div>
@@ -373,6 +409,9 @@ function DashboardPage() {
             <div className={styles.metaRow}>
               {swData?.server && <span>serveur : <strong>{swData.server}</strong></span>}
               <span>discord : <strong>{user?.username || user?.name}</strong></span>
+              {swData?.lastUpload && (
+                <span>json du : <strong>{new Date(swData.lastUpload).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></span>
+              )}
             </div>
 
             {/* Three mini cards */}
